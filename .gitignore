@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+dist/
+build/
+
+# Local model weights and downloaded artifacts
+/Qwen3-0.6B/
+/huggingface/
