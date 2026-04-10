@@ -92,6 +92,13 @@ python scripts/benchmark_baseline.py \
 
 默认 `--mode` 是 `both`，也就是同时跑 `eager` 和 `graph`。
 
+
+
+| benchmark mode | **enforce\_eager** | prefill 阶段 | decode 阶段                          |
+| -------------- | ------------------ | ------------ | ------------------------------------ |
+| **eager**      | **True**           | eager        | eager                                |
+| **graph**      | **False**          | eager        | CUDA Graph，前提是 batch size <= 512 |
+
 ### 2. 只跑 eager
 
 ```bash

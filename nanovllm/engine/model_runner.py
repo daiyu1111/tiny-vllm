@@ -29,8 +29,10 @@ class ModelRunner:
         default_dtype = torch.get_default_dtype()
         torch.set_default_dtype(hf_config.torch_dtype)
         torch.set_default_device("cuda")
+        hf_config.nanovllm_quantization = config.quantization
         self.model = Qwen3ForCausalLM(hf_config)
-        load_model(self.model, config.model)
+        weight_path = config.quantized_model_path or config.model
+        load_model(self.model, weight_path, quantization=config.quantization)
         self.capture_memory_snapshot("after_model_load")
         self.sampler = Sampler()
         self.warmup_model()
