@@ -22,6 +22,7 @@ class ModelRunner:
         self.world_size = config.tensor_parallel_size
         self.rank = rank
         self.event = event
+        self.memory_snapshots = {}
 
         dist.init_process_group("nccl", "tcp://localhost:2333", world_size=self.world_size, rank=rank)
         torch.cuda.set_device(rank)
@@ -30,11 +31,15 @@ class ModelRunner:
         torch.set_default_device("cuda")
         self.model = Qwen3ForCausalLM(hf_config)
         load_model(self.model, config.model)
+        self.capture_memory_snapshot("after_model_load")
         self.sampler = Sampler()
         self.warmup_model()
+        self.capture_memory_snapshot("after_warmup")
         self.allocate_kv_cache()
+        self.capture_memory_snapshot("after_kv_cache")
         if not self.enforce_eager:
             self.capture_cudagraph()
+            self.capture_memory_snapshot("after_cuda_graph")
         torch.set_default_device("cpu")
         torch.set_default_dtype(default_dtype)
 
@@ -57,6 +62,17 @@ class ModelRunner:
             del self.graphs, self.graph_pool
         torch.cuda.synchronize()
         dist.destroy_process_group()
+
+    def capture_memory_snapshot(self, name: str):
+        torch.cuda.synchronize()
+        free, total = torch.cuda.mem_get_info()
+        self.memory_snapshots[name] = {
+            "memory_allocated": int(torch.cuda.memory_allocated()),
+            "max_memory_allocated": int(torch.cuda.max_memory_allocated()),
+            "memory_reserved": int(torch.cuda.memory_reserved()),
+            "free_memory": int(free),
+            "total_memory": int(total),
+        }
 
     def loop(self):
         while True:
