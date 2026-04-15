@@ -781,9 +781,310 @@ int8/bf16 throughput ratio: 0.790x
 - `bench_quant.py --mode both` 会在同一进程中先跑 bf16 再跑 INT8，历史峰值可能包含 warmup、CUDA graph、benchmark 中的临时峰值。
 - 判断模型常驻显存收益时，应优先看 `memory_allocated` 和 `memory_reserved`。
 
+### 量化质量评估落地方案
+
+当前 INT8 benchmark 只验证了量化模型可以加载、可以生成、可以降低模型常驻显存，并记录了吞吐变化。它还不能证明 INT8 模型与原始 bf16 模型在 logits 分布、困惑度和生成语义上足够接近。
+
+因此，下一步应先建立质量基线，再继续优化 fused kernel 计算路径。质量评估需要从“能跑一次”升级为“可复现、可比较、可作为回归门禁”的脚本化流程。建议新增独立脚本：
+
+```text
+bench_quant_quality.py
+```
+
+第一版脚本建议支持：
+
+```bash
+python bench_quant_quality.py \
+  --model Qwen3-0.6B/qwen/Qwen3-0___6B \
+  --int8-model Qwen3-0.6B/qwen/Qwen3-0___6B-int8 \
+  --mode all \
+  --output quant_quality_report.json
+```
+
+输出建议固定为 JSON，至少包含：
+
+- `metadata`：模型路径、量化模型路径、dtype、设备、TP 大小、commit 或运行时间。
+- `artifact_check`：量化产物格式、shape、dtype 和反量化重建误差。
+- `logits_check`：logits 相似度、误差和 top-k 一致性。
+- `ppl_check`：loss / ppl 对比。
+- `generation_check`：固定 prompt 的生成对比和异常标记。
+
+推荐按以下顺序分层验收：
+
+1. P-1：量化产物一致性检查
+
+   在加载完整引擎前，先检查离线量化产物本身是否符合格式预期。这一层成本最低，也最容易定位 `scripts/quantize.py` 或 packed 权重生成错误。
+
+   建议检查：
+
+   - 所有目标层都存在 `.qweight` 和 `.scales`。
+   - `.qweight` dtype 为 `torch.int8`。
+   - `.scales` dtype 为 `torch.float32` 或可安全转换到运行 dtype。
+   - `.qweight.shape` 与对应浮点权重 shape 一致。
+   - `.scales.shape == [out_features]`。
+   - `qkv_proj` 的 q/k/v 拼接顺序与运行时 `QKVParallelLinear` 一致。
+   - `gate_up_proj` 的 gate/up 拼接顺序与运行时 `MergedColumnParallelLinear` 一致。
+   - 反量化权重与原始浮点权重的 per-layer MAE、max error、cosine similarity。
+
+   这一层应作为硬门禁。任何目标层缺失、shape 不一致、dtype 不一致、scale 维度错误，都应直接失败。
+
+2. P0：快速 logits 错误验证
+
+   固定少量 prompt，对比 bf16 和 INT8 的 logits 分布，快速发现运行时加载、TP shard、packed 顺序或反量化计算错误。
+
+   建议记录：
+
+   - logits cosine similarity 的 mean / min / p05。
+   - logits MAE。
+   - logits relative L2 error。
+   - logits max error，用作诊断指标，不建议单独作为硬门禁。
+   - top-1 agreement。
+   - top-5 / top-10 overlap。
+   - top-1 margin 分桶后的 agreement，避免把原模型本来就不确定的位置误判为量化失败。
+
+   第一版阈值建议先采用“两阶段策略”：
+
+   - 初次落地时 record-only，跑固定 prompt 集，记录当前 bf16 vs INT8 的真实分布。
+   - 连续确认结果稳定后，再冻结阈值，作为后续 fused kernel 或 INT4 扩展的回归门禁。
+
+   这一层优先级最高，因为它反馈快，比直接跑 perplexity 更容易定位实现问题。它主要用于发现 `qkv_proj` / `gate_up_proj` packed 顺序、`scales` 切分、`RowParallelLinear` shard、loader 映射等错误。
+
+3. P1：困惑度 / loss 评估
+
+   在 P0 通过后，再使用更标准的语言建模指标评估量化质量。
+
+   第一版推荐先支持本地文本文件或本地 token ids 文件，避免质量评估脚本强依赖联网下载数据集。可以再补一个可选的 `WikiText-2` perplexity 模式，因为它轻量、常见，适合作为量化质量 smoke test。后续可以补充 `C4 validation sample`、中文文本样本和业务 prompt loss 集，用于覆盖更接近实际使用的分布。
+
+   建议记录：
+
+   - bf16 loss / ppl
+   - INT8 loss / ppl
+   - relative delta
+   - 参与评估的 token 数
+   - 最大序列长度和 stride
+
+   这一层用于判断 INT8 weight-only 是否造成可接受范围内的语言建模质量退化。
+
+   P1 不建议一开始设过严阈值。第一版可以先要求 loss / ppl delta 进入可解释范围，并把真实结果写入报告；等 P0/P1 的固定数据集稳定后，再定义硬阈值。
+
+4. P2：确定性生成质量对比
+
+   当前 `SamplingParams` 禁止 `temperature=0`，采样器也使用随机采样。因此 P2 不能直接写成“设置 `temperature=0` 后调用 `generate`”。落地时应二选一：
+
+   - 新增 greedy / argmax 采样模式，让 `generate` 可以在确定性路径下运行。
+   - 或者在质量评估脚本中绕过 sampler，直接逐步取 `argmax(logits)` 做固定步数回放。
+
+   建议记录：
+
+   - bf16 输出
+   - INT8 输出
+   - token match rate
+   - first diff position
+   - 是否提前 EOS
+   - 是否出现明显重复
+   - 是否出现乱码或空输出
+   - 人工可读的 prompt / output 摘要
+
+   这一层不应把 token match rate 作为唯一硬门禁。自回归生成中，早期一个 token 的轻微差异就可能让后续文本完全分叉。更合理的做法是把 token match rate 和 first diff position 作为诊断指标，把乱码、异常重复、提前崩坏、明显语义漂移等作为失败信号。它用于补充 perplexity，观察真实生成路径是否稳定。
+
+5. P3：后续任务 benchmark
+
+   更完整的任务 benchmark 可以作为后续扩展，不作为第一阶段阻塞项。
+
+   可选方向包括：
+
+   - `CMMLU` / `MMLU`
+   - `GSM8K`
+   - `HumanEval` / `MBPP`
+   - 业务 prompt 集
+
+   P3 更适合在 P-1/P0/P1/P2 稳定后作为版本对比指标，而不应阻塞第一版 INT8 weight-only 的基础合入。
+
+完成 P-1/P0/P1/P2 后，再进入 fused dequant GEMM 或专用 INT8 GEMM kernel 优化。性能优化完成后，必须复用同一套质量评估，确认 fused kernel 没有引入额外数值误差。后续扩展 INT4/AWQ 时，也应复用这套报告格式，只新增 INT4 特有的 group size、zero-point、packing 检查项。
+
+### 量化质量评估实现总结
+
+当前仓库已经新增 `bench_quant_quality.py`，用于把上面的质量评估方案落地为可执行、可复现、可保存 JSON 报告的脚本。
+
+本次实现覆盖了 P-1/P0/P1/P2 四层检查：
+
+1. P-1：量化产物检查
+
+   脚本会直接读取原始模型和 INT8 模型目录中的 `*.safetensors`，按 `scripts/quantize.py` 的 packed 规则重建目标浮点权重：
+
+   - `q_proj/k_proj/v_proj -> qkv_proj`
+   - `gate_proj/up_proj -> gate_up_proj`
+   - `o_proj/down_proj` 直接对应
+
+   然后检查 INT8 产物中的 `.qweight` 和 `.scales` 是否齐全，校验 dtype、shape、scale 维度，并计算反量化权重相对原始浮点权重的：
+
+   - MAE
+   - max error
+   - relative L2
+   - cosine similarity
+
+   这一层是硬检查。目标层缺失、dtype 错误、shape 不一致或 scale 维度错误都会在报告中标记失败。
+
+2. P0：logits 分布对比
+
+   脚本会使用 `scripts/benchmark_cases.py` 中的固定文本 prompt，分别加载 bf16 原模型和 INT8 模型，取每条 prompt 最后位置的 logits 做对比。
+
+   当前记录的指标包括：
+
+   - cosine similarity 的 mean / min / p05
+   - MAE
+   - relative L2
+   - max error
+   - top-1 agreement
+   - top-5 / top-10 overlap
+   - 按 top-1 margin 分桶后的 agreement
+
+   第一版 logits 指标是 record-only。只有运行异常或 bf16 / INT8 logits shape 不一致会被视为失败。
+
+3. P1：loss / perplexity 对比
+
+   脚本支持四种 PPL 数据来源：
+
+   - `hf-dataset`：默认使用 Hugging Face `wikitext / wikitext-2-raw-v1 / test`
+   - `builtin`：使用脚本内置短文本，适合离线 smoke test
+   - `text-file`：读取本地 UTF-8 文本文件
+   - `token-ids-json`：读取本地 token ids JSON 文件
+
+   `datasets` 是可选依赖，只在 `--ppl-source hf-dataset` 时 lazy import。如果环境没有安装，会提示使用：
+
+   ```bash
+   pip install datasets
+   ```
+
+   PPL 计算采用 causal LM 方式：用 `logits[:-1]` 预测 `tokens[1:]`，并记录 bf16 / INT8 的 loss、ppl、absolute delta、relative delta、参与 token 数和窗口数量。
+
+4. P2：确定性生成对比
+
+   当前没有修改 `SamplingParams`，也没有改变正常 `LLM.generate()` 的随机采样行为。质量脚本内部绕过 sampler，逐步调用 logits 前向并取 `argmax(logits)` 做确定性回放。
+
+   报告会记录：
+
+   - bf16 / INT8 生成 token ids
+   - bf16 / INT8 生成文本
+   - token match rate
+   - first diff position
+   - 是否空输出
+   - 是否出现连续重复 token
+   - 是否以 EOS 结束
+
+为了支持 P0/P1/P2，`nanovllm/engine/model_runner.py` 新增了两个内部评估入口：
+
+- `prefill_last_logits(token_ids_batch)`：返回每条序列最后位置 logits，用于 logits 对比和 argmax 生成。
+- `prefill_full_logits(token_ids)`：返回整段序列逐 token logits，用于 loss / ppl 计算。
+
+这两个入口通过 `model_runner.call(...)` 调用，能够复用现有 TP worker 机制；正常推理和 `LLM.generate()` 行为不受影响。
+
+### 量化质量评估使用方式
+
+在运行质量评估前，先确保已经生成 INT8 量化模型目录：
+
+```bash
+python scripts/quantize.py \
+  --model Qwen3-0.6B/qwen/Qwen3-0___6B \
+  --output Qwen3-0.6B/qwen/Qwen3-0___6B-int8 \
+  --quantization int8
+```
+
+完整质量评估：
+
+```bash
+python bench_quant_quality.py \
+  --model Qwen3-0.6B/qwen/Qwen3-0___6B \
+  --int8-model Qwen3-0.6B/qwen/Qwen3-0___6B-int8 \
+  --mode all \
+  --output quant_quality_report.json
+```
+
+如果要使用默认 WikiText-2 PPL，需要先安装可选依赖：
+
+```bash
+pip install datasets
+```
+
+只检查量化产物格式和重建误差：
+
+```bash
+python bench_quant_quality.py \
+  --model Qwen3-0.6B/qwen/Qwen3-0___6B \
+  --int8-model Qwen3-0.6B/qwen/Qwen3-0___6B-int8 \
+  --mode artifact \
+  --output quant_quality_artifact.json
+```
+
+只做 logits 对比：
+
+```bash
+python bench_quant_quality.py \
+  --model Qwen3-0.6B/qwen/Qwen3-0___6B \
+  --int8-model Qwen3-0.6B/qwen/Qwen3-0___6B-int8 \
+  --mode logits \
+  --output quant_quality_logits.json
+```
+
+离线 PPL smoke test，不下载数据集：
+
+```bash
+python bench_quant_quality.py \
+  --model Qwen3-0.6B/qwen/Qwen3-0___6B \
+  --int8-model Qwen3-0.6B/qwen/Qwen3-0___6B-int8 \
+  --mode ppl \
+  --ppl-source builtin \
+  --output quant_quality_ppl_builtin.json
+```
+
+使用本地文本文件做 PPL：
+
+```bash
+python bench_quant_quality.py \
+  --model Qwen3-0.6B/qwen/Qwen3-0___6B \
+  --int8-model Qwen3-0.6B/qwen/Qwen3-0___6B-int8 \
+  --mode ppl \
+  --ppl-source text-file \
+  --ppl-text-file data/eval_text.txt \
+  --output quant_quality_ppl_text.json
+```
+
+只做确定性 argmax 生成对比：
+
+```bash
+python bench_quant_quality.py \
+  --model Qwen3-0.6B/qwen/Qwen3-0___6B \
+  --int8-model Qwen3-0.6B/qwen/Qwen3-0___6B-int8 \
+  --mode generation \
+  --generation-max-tokens 64 \
+  --output quant_quality_generation.json
+```
+
+多卡 TP smoke test 示例：
+
+```bash
+python bench_quant_quality.py \
+  --model Qwen3-0.6B/qwen/Qwen3-0___6B \
+  --int8-model Qwen3-0.6B/qwen/Qwen3-0___6B-int8 \
+  --mode logits \
+  --tensor-parallel-size 2 \
+  --output quant_quality_tp2_logits.json
+```
+
+输出 JSON 顶层字段固定为：
+
+- `metadata`
+- `artifact_check`
+- `logits_check`
+- `ppl_check`
+- `generation_check`
+- `summary`
+
+其中 `summary.passed` 表示本次已运行阶段的总体状态；第一版数值质量指标仍以 record-only 为主，后续可以在多次稳定运行后冻结阈值，用作 fused kernel 或 INT4/AWQ 扩展的回归门禁。
+
 ### 下一步优化方向
 
-1. 优先优化计算路径
+1. 先补质量基线，再优化计算路径
 
    当前最大性能瓶颈是每次前向都显式反量化权重：
 
@@ -791,7 +1092,9 @@ int8/bf16 throughput ratio: 0.790x
    qweight -> dequant_weight -> F.linear
    ```
 
-   下一步应优先实现 Triton fused dequant GEMM 或专用 INT8 GEMM kernel，将反量化和矩阵乘法融合，减少临时张量和内存带宽开销。
+   但在实现 Triton fused dequant GEMM 或专用 INT8 GEMM kernel 之前，应先完成 P0/P1/P2 质量评估，确认当前 INT8 weight-only 路径没有明显量化错误或语义退化。
+
+   质量基线通过后，再将 `dequantize + GEMM` 融合到更高效的 kernel 中，减少临时张量和内存带宽开销。fused kernel 完成后必须重复同一套质量评估，确认性能优化没有引入额外数值误差。
 
 2. 增强 benchmark 统计
 

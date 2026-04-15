@@ -1,6 +1,7 @@
 import pickle
 import torch
 import torch.distributed as dist
+import torch.nn.functional as F
 from multiprocessing.synchronize import Event
 from multiprocessing.shared_memory import SharedMemory
 
@@ -227,6 +228,39 @@ class ModelRunner:
             graph_vars["block_tables"][:bs, :context.block_tables.size(1)] = context.block_tables
             graph.replay()
             return self.model.compute_logits(graph_vars["outputs"][:bs])
+
+    def compute_full_logits(self, hidden_states: torch.Tensor) -> torch.Tensor | None:
+        logits = F.linear(hidden_states, self.model.lm_head.weight)
+        if self.world_size > 1:
+            all_logits = [torch.empty_like(logits) for _ in range(self.world_size)] if self.rank == 0 else None
+            dist.gather(logits, all_logits, 0)
+            logits = torch.cat(all_logits, -1) if self.rank == 0 else None
+        return logits
+
+    @torch.inference_mode()
+    def prefill_last_logits(self, token_ids_batch: list[list[int]]) -> torch.Tensor | None:
+        seqs = [Sequence(token_ids) for token_ids in token_ids_batch]
+        input_ids, positions = self.prepare_prefill(seqs)
+        context = get_context()
+        context.slot_mapping = torch.full((input_ids.numel(),), -1, dtype=torch.int32, device=input_ids.device)
+        try:
+            logits = self.run_model(input_ids, positions, True)
+            return logits.float().cpu() if self.rank == 0 else None
+        finally:
+            reset_context()
+
+    @torch.inference_mode()
+    def prefill_full_logits(self, token_ids: list[int]) -> torch.Tensor | None:
+        seqs = [Sequence(token_ids)]
+        input_ids, positions = self.prepare_prefill(seqs)
+        context = get_context()
+        context.slot_mapping = torch.full((input_ids.numel(),), -1, dtype=torch.int32, device=input_ids.device)
+        try:
+            hidden_states = self.model(input_ids, positions)
+            logits = self.compute_full_logits(hidden_states)
+            return logits.float().cpu() if self.rank == 0 else None
+        finally:
+            reset_context()
 
     def run(self, seqs: list[Sequence], is_prefill: bool) -> list[int]:
         # 1. 备菜：把 Python 对象变成 GPU 认识的张量 (Tensor)
