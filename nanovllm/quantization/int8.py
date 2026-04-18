@@ -1,8 +1,8 @@
 import torch
 from torch import nn
-import torch.nn.functional as F
 
 from nanovllm.quantization.base import QuantMethod
+from nanovllm.quantization.cuda import apply_int8_weight_only_linear
 
 
 class Int8WeightOnlyQuantMethod(QuantMethod):
@@ -18,5 +18,4 @@ class Int8WeightOnlyQuantMethod(QuantMethod):
         )
 
     def apply(self, x: torch.Tensor, layer: nn.Module) -> torch.Tensor:
-        weight = layer.qweight.to(x.dtype) * layer.scales.to(x.dtype).unsqueeze(1)
-        return F.linear(x, weight, layer.bias)
+        return apply_int8_weight_only_linear(x, layer.qweight, layer.scales, layer.bias)

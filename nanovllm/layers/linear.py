@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torch.distributed as dist
 
 from nanovllm.quantization import Int8WeightOnlyQuantMethod
+from nanovllm.quantization.cuda import apply_int8_weight_only_linear
 
 
 def divide(numerator, denominator):
@@ -260,8 +261,7 @@ class RowParallelLinear(LinearBase):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.quant_method is not None:
-            weight = self.qweight.to(x.dtype) * self.scales.to(x.dtype).unsqueeze(1)
-            y = F.linear(x, weight, self.bias if self.tp_rank == 0 else None)
+            y = apply_int8_weight_only_linear(x, self.qweight, self.scales, self.bias if self.tp_rank == 0 else None)
         else:
             y = F.linear(x, self.weight, self.bias if self.tp_rank == 0 else None)
         if self.tp_size > 1:

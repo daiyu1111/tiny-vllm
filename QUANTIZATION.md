@@ -1,4 +1,4 @@
-# Nano-vLLM 量化设计文档
+﻿# Nano-vLLM 量化设计文档
 
 ## 概述
 
@@ -1121,3 +1121,432 @@ python bench_quant_quality.py \
 4. 后续再考虑 INT4/AWQ
 
    第一版已经打通 INT8 weight-only 的模型格式、加载路径、线性层抽象和基本验证。下一阶段可以在同一抽象层上扩展 INT4/AWQ，但不建议同时引入 KV cache quantization 或 activation quantization，以免扩大改动面。
+
+### INT8 吞吐优化具体实现方案
+
+本节给出面向后续编码的具体落地方案，目标是在不改变当前 INT8 weight-only 模型格式和数值语义的前提下，解决现有 `qweight -> dequant_weight -> F.linear` 路径的吞吐瓶颈。推荐路线明确收敛为：
+
+- 使用 CUDA 自定义 kernel 实现 `fused dequant + GEMM`
+- 不再把后续优化主线写成 Triton 方案
+
+这里的核心思路是：把 `int8 qweight` 的反量化过程融合进矩阵乘内部，在 CUDA kernel 的 tile 计算过程中按需完成 `int8 -> runtime dtype -> * scales -> accumulate`，而不是先在外部显式构造整块 `dequant_weight` 浮点临时张量。
+
+#### Triton 是做什么的
+
+Triton 是一种用于编写 GPU kernel 的 DSL 和编译工具链，适合快速开发定制矩阵计算、attention、layer norm 等高性能算子。它的定位更接近“用 Python 风格写自定义 GPU kernel”，而不是新的推理框架或量化算法。
+
+但对当前仓库而言，下一步文档不再推荐 Triton 作为主线实现方式，而是直接规划 CUDA 自定义 kernel。原因是：
+
+- 后续目标已经很明确：把反量化融合到 GEMM
+- CUDA 实现更接近最终长期维护的执行路径
+- 更容易精确控制 tile 布局、shared memory、vectorized load 和累加策略
+- 后续若需要接 CUDA graph、进一步贴近 cuBLAS/CUTLASS 风格优化，也更自然
+
+#### 优化目标与边界
+
+这一阶段的目标不是改变量化算法，而是优化运行时执行路径：
+
+- 保持离线量化产物格式不变，继续使用现有 `.qweight + .scales`
+- 保持当前 per-channel INT8 weight-only 语义不变
+- 保持输出结果与当前朴素路径在数值上等价，只允许正常浮点舍入误差
+- 不引入 activation quantization
+- 不引入 KV cache quantization
+- 不引入 LM head quantization
+- 不改变 Tensor Parallel、packed weight 和 loader 的现有约定
+
+因此，本节优化的唯一重点是把：
+
+```text
+qweight -> dequant_weight -> F.linear
+```
+
+替换为：
+
+```text
+CUDA fused dequantize + GEMM
+```
+
+#### 模块划分
+
+建议把实现拆成 4 个子模块，避免把 CUDA kernel、量化分派、线性层接入和验证逻辑混在一起。
+
+##### 1. CUDA kernel 层
+
+建议新增独立实现，例如：
+
+```text
+nanovllm/quantization/csrc/int8_weight_only_gemm.cu
+nanovllm/quantization/csrc/int8_weight_only_gemm.cpp
+```
+
+首版 kernel 的输入输出建议固定为：
+
+```python
+fused_int8_weight_only_linear(
+    x,        # [tokens, in_features], bf16/fp16
+    qweight,  # [out_features, in_features], int8
+    scales,   # [out_features], float32
+    bias=None # [out_features] or None
+) -> y       # [tokens, out_features], same dtype as x
+```
+
+kernel 内部行为约定如下：
+
+- `x` 保持 `bf16/fp16`
+- `qweight` 保持 `int8`
+- `scales` 保持 `float32` 存储
+- 线程块按 tile 处理 `x @ W^T`
+- 从 global memory 分块读取 `x tile` 和 `qweight tile`
+- 在寄存器或 shared memory 中把 `qweight` 转成运行时 dtype
+- 按输出通道应用 `scales`
+- 直接在 kernel 内完成乘加累积
+- 累加器首版建议使用 `fp32`
+- 输出阶段再 cast 回 `x.dtype`
+- `bias` 加法行为与当前 `F.linear` 路径保持一致
+
+关键点是：反量化后的权重只在 tile 生命周期内存在，不写回 global memory，不生成完整 `dequant_weight` 张量。
+
+首版 kernel 的实现范围建议收敛为：
+
+- 单卡
+- eager 路径
+- CUDA device only
+- `x.ndim == 2`
+- 输入在进入 kernel 前整理为 contiguous 的二维矩阵
+- 先覆盖当前 Qwen3 INT8 weight-only 所涉及的线性层
+
+如果后续输入是更高维张量，建议在量化方法层先 reshape 为 `[tokens, hidden]`，kernel 只负责最核心的二维矩阵乘。
+
+##### 2. 量化方法层
+
+`Int8WeightOnlyQuantMethod.apply(x, layer)` 的调用面建议保持不变，但内部执行路径切换为：
+
+1. 优先尝试 CUDA fused kernel
+2. 不满足条件时自动回退到当前朴素路径
+
+建议内部抽象出一个 helper，例如：
+
+```python
+apply_int8_weight_only_linear(x, qweight, scales, bias=None) -> torch.Tensor
+```
+
+分派逻辑建议明确写成：
+
+- 若 CUDA extension 可用、device 为 CUDA、dtype/shape 满足 kernel 约束，则走 fused CUDA kernel
+- 否则回退到：
+
+```python
+weight = qweight.to(x.dtype) * scales.to(x.dtype).unsqueeze(1)
+return F.linear(x, weight, bias)
+```
+
+这里必须保留回退路径，原因包括：
+
+- 无编译扩展环境时仍要保证功能可用
+- 某些小 shape 或特殊 shape 可能不值得走 fused kernel
+- 调试和数值对比时需要强制走朴素路径
+- 后续排查 TP、CUDA graph 或新模型兼容性问题时，回退路径是重要保底手段
+
+如果需要调试开关，可以只新增内部布尔选项，例如“强制关闭 fused CUDA kernel”，但不要求新增公开用户配置项；用户侧仍沿用现有 `quantization="int8"` 即可。
+
+##### 3. 线性层接入层
+
+线性层接入原则保持当前抽象不变：
+
+- `LinearBase.apply_linear()` 继续通过 `quant_method.apply(...)` 分派
+- `RowParallelLinear.forward()` 继续复用同一量化方法，而不是单独复制一套 CUDA fused 逻辑
+
+这意味着以下层的接入方式都不需要改变接口，只替换底层执行内核：
+
+- `ReplicatedLinear`
+- `ColumnParallelLinear`
+- `MergedColumnParallelLinear`
+- `QKVParallelLinear`
+- `RowParallelLinear`
+
+实现时应继续保持下面这些约束不变：
+
+- Tensor Parallel 语义不变，kernel 只处理单个 shard 的局部矩阵乘
+- `QKVParallelLinear` 的 `q/k/v` packed 顺序不变
+- `MergedColumnParallelLinear` 的 `gate/up` packed 顺序不变
+- loader 对 `.qweight` 和 `.scales` 的加载与切片逻辑不变
+
+换句话说，这一阶段不碰模型格式和并行切分规则，只替换“局部 shard 上的一次线性层计算是如何执行的”。
+
+##### 4. Benchmark 与质量门禁
+
+性能优化不能只看 tokens/s，必须继续复用当前质量评估流程。
+
+建议后续实现时把 benchmark 与回归门禁固定为两层：
+
+1. 性能层：
+
+- 继续使用 `bench_quant.py`
+- 增加或细化 `prefill throughput`
+- 增加或细化 `decode throughput`
+- 区分 warmup 后吞吐与总吞吐
+- 记录 fused 前后显存常驻收益是否保持稳定
+
+2. 质量层：
+
+- 继续使用 `bench_quant_quality.py --mode logits`
+- 继续使用 `bench_quant_quality.py --mode ppl`
+- 继续使用 `bench_quant_quality.py --mode generation`
+- 先过质量，再比较吞吐
+
+这里的核心原则是：CUDA fused kernel 只是执行路径优化，不应引入新的量化语义变化。如果 fused 后质量报告明显劣化，应优先视为实现错误，而不是“性能优化的正常代价”。
+
+#### CUDA kernel 设计约束
+
+为了避免实现阶段重新做产品决策，建议提前锁定以下约束：
+
+- 输入激活 `x` 仍保持 `bf16/fp16`
+- `qweight` 仍保持 `int8`
+- `scales` 仍保持 `float32`
+- `bias` 行为与当前实现一致
+- 外部配置项不新增，继续使用现有 `quantization="int8"`
+- `Int8WeightOnlyQuantMethod.apply(x, layer)` 仍是统一入口
+- Tensor Parallel 只影响 shard 切分，不改变 kernel 的本地计算语义
+- packed 权重格式不变，不为 CUDA kernel 重定义模型存储格式
+
+首版实现建议优先使用“每个 thread block 计算输出矩阵一个 tile”的标准 GEMM 结构，并显式约定以下策略：
+
+- `x` tile 从 global memory 读入 shared memory
+- `qweight` tile 从 global memory 读入 shared memory 或寄存器
+- `qweight` 在 tile 内转成 `fp16/bf16`
+- `scales` 以输出通道维度广播到 tile
+- 使用 `K` 维分块循环完成累加
+- 尽量使用 vectorized load，例如 `int4`/`int8` pack 读取多个 `int8` 元素
+- 对 `x` 和 `qweight` 的访问模式保持 coalesced
+
+如果后续发现 `scales=float32` 带来明显额外带宽压力，可以再评估：
+
+- 将 `scales` 在加载后缓存到 shared memory
+- 或在保持数值可接受的前提下引入更紧凑的运行时表示
+
+但这些都属于第二轮优化，不应与首版 fused CUDA kernel 同时推进。
+
+#### 分阶段交付顺序
+
+建议按以下顺序落地，避免一次性把风险叠满：
+
+1. 先做单卡 eager 的 CUDA fused kernel  
+   在最小场景下验证 kernel 功能、数值一致性和基础吞吐收益。
+
+2. 再接到统一量化分派路径  
+   让 `Int8WeightOnlyQuantMethod.apply(...)` 默认优先走 CUDA fused kernel，并保留回退。
+
+3. 再验证所有已支持线性层  
+   包括 `ReplicatedLinear`、`ColumnParallelLinear`、`MergedColumnParallelLinear`、`QKVParallelLinear`、`RowParallelLinear`。
+
+4. 再验证 Tensor Parallel  
+   先确认 shard 内 fused 计算正确，再检查 `all_reduce`、packed weight 和多卡加载路径是否仍然稳定。
+
+5. 再评估 CUDA graph 路径是否需要专门适配  
+   如果 eager 已稳定、TP 已稳定，再看该 kernel 在 graph capture 场景下是否有额外限制。
+
+6. 最后才讨论更激进的后续路线  
+   包括专用 INT8 GEMM、INT4/AWQ 扩展、运行时 scale 缓存优化等。
+
+#### 建议的内部接口
+
+为了让后续实现保持边界清晰，建议锁定以下内部接口形态：
+
+```python
+class Int8WeightOnlyQuantMethod(QuantMethod):
+    def apply(self, x: torch.Tensor, layer: nn.Module) -> torch.Tensor: ...
+```
+
+内部再由它调用一个更聚焦的 helper：
+
+```python
+def apply_int8_weight_only_linear(
+    x: torch.Tensor,
+    qweight: torch.Tensor,
+    scales: torch.Tensor,
+    bias: torch.Tensor | None = None,
+) -> torch.Tensor:
+    ...
+```
+
+其中：
+
+- `apply()` 负责拿到 layer 上的 `qweight/scales/bias`
+- helper 负责选择 CUDA fused kernel 或朴素回退路径
+- CUDA extension 的 Python binding 保持“纯函数”形态，只接收张量并返回结果，避免把 layer 结构和 kernel 代码耦合在一起
+
+这种接口划分的好处是：
+
+- 线性层侧不需要了解 CUDA kernel 细节
+- kernel 侧不需要了解模型层级结构
+- 朴素路径与 fused 路径可以共用同一个入口做 A/B 对比
+
+#### 测试与验收建议
+
+后续真正实现这条优化路线时，至少应覆盖以下场景：
+
+1. 单卡 `enforce_eager=True` 数值对比
+
+- CUDA fused kernel 输出与当前朴素路径逐层对比
+- 允许正常浮点误差，不允许系统性偏差
+
+2. 质量回归
+
+- `bench_quant_quality.py --mode logits`
+- `bench_quant_quality.py --mode ppl`
+- `bench_quant_quality.py --mode generation`
+
+要求 fused 前后都跑一遍，确认没有明显语义退化。
+
+3. 性能对比
+
+- `bench_quant.py` 对比 fused 前后的 `prefill throughput`
+- `bench_quant.py` 对比 fused 前后的 `decode throughput`
+- `bench_quant.py` 对比 fused 前后的总吞吐
+
+4. 多卡 TP smoke test
+
+- `tensor_parallel_size=2` 的 INT8 路径可以正常加载
+- 可以正常生成
+- 质量检查通过
+
+5. 回退路径验证
+
+- CUDA extension 不可用时能自动回退
+- 不支持的 dtype/shape 时能自动回退
+- 回退后功能行为保持正确
+
+验收标准建议先采用定性门槛，而不是在首版里拍脑袋定死数值：
+
+- 吞吐应相对当前 INT8 朴素实现有明确提升
+- 模型常驻显存收益不能丢失
+- 质量报告不能比当前 INT8 基线出现明显恶化
+
+如果后续多次运行结果稳定，再把吞吐提升幅度和质量阈值固化为更严格的 benchmark / CI 门禁。
+
+### 当前 CUDA 融合实现总结
+
+当前仓库已经按上面的路线接入了第一版 `CUDA fused dequant + GEMM`，目标是先把执行路径打通，让 INT8 weight-only 在线性层前向时不再总是显式构造完整 `dequant_weight`。
+
+本次代码修改集中在以下几个位置：
+
+1. CUDA fused helper
+
+   新增 [nanovllm/quantization/cuda.py](/E:/llmegine/nano-vllm-main/nano-vllm-main/nanovllm/quantization/cuda.py)，职责包括：
+
+   - 判断当前输入是否满足 fused CUDA kernel 的使用条件
+   - 通过 `torch.utils.cpp_extension.load(...)` 在首次使用时动态编译并加载 CUDA extension
+   - 提供统一入口 `apply_int8_weight_only_linear(...)`
+   - 若 CUDA extension 不可用，或 shape / dtype / device 不满足要求，则自动回退到原有 `dequantize + F.linear` 路径
+
+2. CUDA extension 入口与 kernel
+
+   新增：
+
+   - [nanovllm/quantization/csrc/int8_weight_only_gemm.cpp](/E:/llmegine/nano-vllm-main/nano-vllm-main/nanovllm/quantization/csrc/int8_weight_only_gemm.cpp)
+   - [nanovllm/quantization/csrc/int8_weight_only_gemm.cu](/E:/llmegine/nano-vllm-main/nano-vllm-main/nanovllm/quantization/csrc/int8_weight_only_gemm.cu)
+
+   首版 CUDA kernel 的行为是：
+
+   - 输入 `x` 仍使用 `fp16/bf16`
+   - 权重 `qweight` 仍保持 `int8`
+   - `scales` 仍保持 `float32`
+   - 在 kernel 内按输出元素执行 `int8 -> float -> * scale -> accumulate`
+   - 不再在 Python 路径中生成完整浮点权重矩阵
+
+   这版实现优先保证路径正确和接口稳定，还不是最终的高性能 tiled GEMM 版本。后续如果继续优化，重点会落在 shared memory、vectorized load、tile 设计和访存模式上。
+
+3. INT8 量化执行路径切换
+
+   [nanovllm/quantization/int8.py](/E:/llmegine/nano-vllm-main/nano-vllm-main/nanovllm/quantization/int8.py) 已经改为统一走 `apply_int8_weight_only_linear(...)`，也就是：
+
+   - 能走 CUDA fused kernel 时优先走 fused 路径
+   - 不能走时自动回退到朴素路径
+
+4. 线性层接入
+
+   [nanovllm/layers/linear.py](/E:/llmegine/nano-vllm-main/nano-vllm-main/nanovllm/layers/linear.py) 中原本特判的 `RowParallelLinear` INT8 路径，也已经切到同一个 helper，避免一部分层走 fused、一部分层仍停留在手写反量化逻辑。
+
+#### 如何运行
+
+这版实现不需要单独手写 `setup.py` 或手动预编译。运行方式仍然和当前 INT8 路径一致；区别是第一次真正走到 fused CUDA 路径时，会自动触发 extension 的 JIT 编译。
+
+建议按下面顺序运行：
+
+1. 先准备 INT8 量化模型
+
+```bash
+python scripts/quantize.py \
+  --model Qwen3-0.6B/qwen/Qwen3-0___6B \
+  --output Qwen3-0.6B/qwen/Qwen3-0___6B-int8 \
+  --quantization int8
+```
+
+2. 做单条生成 smoke test
+
+```python
+from nanovllm import LLM, SamplingParams
+from transformers import AutoTokenizer
+
+base = "Qwen3-0.6B/qwen/Qwen3-0___6B"
+int8 = "Qwen3-0.6B/qwen/Qwen3-0___6B-int8"
+
+tokenizer = AutoTokenizer.from_pretrained(base)
+llm = LLM(
+    base,
+    quantization="int8",
+    quantized_model_path=int8,
+    enforce_eager=True,
+    tensor_parallel_size=1,
+)
+
+prompt = tokenizer.apply_chat_template(
+    [{"role": "user", "content": "introduce yourself"}],
+    tokenize=False,
+    add_generation_prompt=True,
+    enable_thinking=False,
+)
+
+outputs = llm.generate([prompt], SamplingParams(temperature=0.6, max_tokens=64))
+print(outputs[0]["text"])
+```
+
+3. 跑吞吐 benchmark
+
+```bash
+python bench_quant.py --mode both --enforce-eager
+```
+
+如果只想看 INT8：
+
+```bash
+python bench_quant.py --mode int8 --enforce-eager
+```
+
+4. 跑质量回归
+
+```bash
+python bench_quant_quality.py \
+  --model Qwen3-0.6B/qwen/Qwen3-0___6B \
+  --int8-model Qwen3-0.6B/qwen/Qwen3-0___6B-int8 \
+  --mode logits \
+  --output quant_quality_logits.json
+```
+
+完整质量评估：
+
+```bash
+python bench_quant_quality.py \
+  --model Qwen3-0.6B/qwen/Qwen3-0___6B \
+  --int8-model Qwen3-0.6B/qwen/Qwen3-0___6B-int8 \
+  --mode all \
+  --output quant_quality_report.json
+```
+
+#### 运行时注意事项
+
+- 首次走 fused CUDA 路径时，会触发 `torch.utils.cpp_extension.load(...)` 动态编译，因此第一次运行通常会比后续慢。
+- 需要本地 Python 环境中可正常导入 `torch`，并且具备可用的 CUDA / NVCC 编译环境，否则会自动回退到 `dequantize + F.linear`。
+- 当前 fused kernel 只在 CUDA、`fp16/bf16` 激活、`int8` 权重、`float32` scales 的组合下尝试启用。
+- 当前版本的回退策略是静默回退；如果你想观察是否真的命中了 fused kernel，后续可以再补调试日志或显式开关。
+- 这版 kernel 的重点是先完成“反量化融合到 GEMM”的执行路径，吞吐可能会优于当前朴素实现，但还不应把它视为最终性能版。
