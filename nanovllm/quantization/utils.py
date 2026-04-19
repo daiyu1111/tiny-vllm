@@ -25,6 +25,13 @@ def quantize_int8_per_channel(weight: torch.Tensor, eps: float = 1e-8) -> tuple[
     return qweight, scales.to(torch.float32)
 
 
+def quantize_int8_per_row_dynamic(x: torch.Tensor, eps: float = 1e-8) -> tuple[torch.Tensor, torch.Tensor]:
+    x_float = x.float()
+    scales = x_float.abs().amax(dim=1).div(127.0).clamp_min(eps)
+    qx = torch.round(x_float / scales.unsqueeze(1)).clamp(-127, 127).to(torch.int8)
+    return qx, scales.to(torch.float32)
+
+
 def iter_model_files(model_path: Path):
     for path in model_path.iterdir():
         if path.is_file() and path.suffix != ".safetensors":

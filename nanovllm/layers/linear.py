@@ -3,8 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 import torch.distributed as dist
 
-from nanovllm.quantization import Int8WeightOnlyQuantMethod
-from nanovllm.quantization.cuda import apply_int8_weight_only_linear
+from nanovllm.quantization import Int8WeightOnlyQuantMethod, W8A8QuantMethod
 
 
 def divide(numerator, denominator):
@@ -23,20 +22,28 @@ class LinearBase(nn.Module):
         quantization: str | None = None,
     ):
         super().__init__()
-        if quantization not in (None, "int8"):
+        if quantization not in (None, "int8", "w8a8"):
             raise NotImplementedError(f"Unsupported linear quantization: {quantization}")
         self.tp_dim = tp_dim
         self.tp_rank = dist.get_rank()
         self.tp_size = dist.get_world_size()
         self.quantization = quantization
-        self.quant_method = Int8WeightOnlyQuantMethod() if quantization == "int8" else None
+        if quantization == "int8":
+            self.quant_method = Int8WeightOnlyQuantMethod()
+        elif quantization == "w8a8":
+            self.quant_method = W8A8QuantMethod()
+        else:
+            self.quant_method = None
         if self.quant_method is None:
             self.weight = nn.Parameter(torch.empty(output_size, input_size))
             self.weight.weight_loader = self.weight_loader
         else:
             self.quant_method.create_weights(self, input_size, output_size)
             self.qweight.weight_loader = self.qweight_loader
-            self.scales.weight_loader = self.scales_loader
+            if hasattr(self, "scales"):
+                self.scales.weight_loader = self.scales_loader
+            if hasattr(self, "w_scales"):
+                self.w_scales.weight_loader = self.scales_loader
         if bias:
             self.bias = nn.Parameter(torch.empty(output_size))
             self.bias.weight_loader = self.bias_loader
@@ -261,7 +268,7 @@ class RowParallelLinear(LinearBase):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.quant_method is not None:
-            y = apply_int8_weight_only_linear(x, self.qweight, self.scales, self.bias if self.tp_rank == 0 else None)
+            y = self.quant_method.apply(x, self, self.bias if self.tp_rank == 0 else None)
         else:
             y = F.linear(x, self.weight, self.bias if self.tp_rank == 0 else None)
         if self.tp_size > 1:

@@ -742,43 +742,7 @@ packed 层建议在离线量化阶段直接生成 packed 后的权重：
 
    该命令会先跑原模型，再跑 INT8 模型，并打印显存和吞吐对比。
 
-### 当前实测结果
 
-在 `Qwen3-0.6B` 上，旧的 `INT8 = dequantize + F.linear` 基线已经不再代表当前实现。现在更建议把结果按 backend 记录，例如：
-
-```text
-bf16 memory after load: ...
-bf16 total: ...
-int8[backend=native] total: ...
-int8[backend=cutlass] total: ...
-int8_native/bf16 ratios: ...
-int8_cutlass/bf16 ratios: ...
-```
-
-显存结论：
-
-- 重点仍然看 `memory_allocated` 与 `memory_reserved`，它们更接近模型加载后的常驻显存。
-- 若 `int8[backend=native]` 或 `int8[backend=cutlass]` 的加载显存低于 bf16 baseline，就说明 INT8 weight-only 的常驻显存收益仍然成立。
-
-性能结论：
-
-- 当前更关注的是 backend 间真实比较：
-
-  - `native`：当前自定义 CUDA kernel
-  - `cutlass`：CUTLASS backend
-  - `fallback`：Python `dequantize + F.linear`
-- benchmark 的解读方式应改为：
-
-  - `native vs bf16`
-  - `cutlass vs bf16`
-  - `cutlass vs native`
-- 不再使用“当前还是纯 `F.linear` 路径”来解释结果，因为这只对应 `fallback` backend，不再代表默认实现。
-
-关于 `max_allocated=20.94GiB`：
-
-- `max_allocated` 是进程历史峰值，不等同于模型加载后的常驻显存。
-- `bench_quant.py --mode both` 会在同一进程中先跑 bf16 再跑一个或多个 INT8 backend，历史峰值可能包含 warmup、CUDA graph、benchmark 中的临时峰值。
-- 判断模型常驻显存收益时，应优先看 `memory_allocated` 和 `memory_reserved`。
 
 ### 量化质量评估落地方案
 
@@ -1467,6 +1431,7 @@ def apply_int8_weight_only_linear(
    - 它已经是独立的 `cutlass` backend
    - 但它还不是最终版的“最优 fused dequant + GEMM”实现
    - 当前主要用途是与 `native` 做真实 A/B benchmark
+   - 从当前实测结果看，这版 CUTLASS backend 比 `native` 还慢，因此目前更适合作为实验性后端，而不是默认性能方案
 4. 日志与路径观测
 
    打开：
@@ -1595,3 +1560,79 @@ python bench_quant_quality.py \
 - 当前 `native` backend 支持 CUDA、`fp16/bf16` 激活、`int8` 权重、`float32` scales。
 - 当前 `cutlass` backend 已可作为独立 backend 参与 benchmark，但实现上仍是“先转高精，再调用 CUTLASS GEMM”的过渡版，不应把它误认为最终的最优 fused kernel。
 - 当前日志不是静默回退；打开 `NANOVLLM_INT8_LOG_PATH=1` 后，可以直接看到实际命中的 backend 与 path。
+- 从当前 benchmark 结果看，若目标是吞吐提升，不应默认假设 `W8A16` 会优于 bf16 baseline；当前实现下，更可靠的收益仍然是权重常驻显存下降。
+
+
+### 当前实测结果
+
+在 `Qwen3-0.6B` 上，当前已经实际测过 3 条路径：
+
+- `bf16 baseline`
+- `int8[backend=native]`：当前自定义 CUDA kernel
+- `int8[backend=cutlass]`：当前 CUTLASS backend
+
+```text
+bf16 memory after load: allocated=1.13GiB, reserved=1.48GiB, max_allocated=1.42GiB
+bf16 total: 133966tok, time=57.87s, throughput=2315.07tok/s
+bf16 split: prefill=41657.54tok/s (tokens=200801, time=4.82s, steps=63), decode=2521.06tok/s (tokens=133634, time=53.01s, steps=1319), ttft~=2.66s
+bf16 runtime memory: allocated=20.50GiB, reserved=21.37GiB, peak_allocated=20.93GiB
+
+int8[backend=native] memory after load: allocated=0.73GiB, reserved=1.03GiB, max_allocated=20.93GiB
+int8[backend=native] total: 133966tok, time=77.73s, throughput=1723.49tok/s
+int8[backend=native] split: prefill=12220.94tok/s (tokens=200875, time=16.44s, steps=67), decode=2181.58tok/s (tokens=133629, time=61.25s, steps=1228), ttft~=12.20s
+int8[backend=native] runtime memory: allocated=20.56GiB, reserved=21.37GiB, peak_allocated=20.99GiB
+int8_native/bf16 ratios: total=0.744x prefill=0.293x decode=0.865x
+
+int8[backend=cutlass] memory after load: allocated=0.73GiB, reserved=1.03GiB, max_allocated=1.02GiB
+int8[backend=cutlass] total: 133966tok, time=108.72s, throughput=1232.25tok/s
+int8[backend=cutlass] split: prefill=11687.35tok/s (tokens=200875, time=17.19s, steps=67), decode=1460.60tok/s (tokens=133629, time=91.49s, steps=1228), ttft~=12.08s
+int8[backend=cutlass] runtime memory: allocated=20.56GiB, reserved=21.39GiB, peak_allocated=21.00GiB
+```
+
+显存结论：
+
+- 重点仍然看 `memory_allocated` 与 `memory_reserved`，它们更接近模型加载后的常驻显存。
+- `int8[backend=native]` 与 `int8[backend=cutlass]` 的加载显存都明显低于 bf16 baseline，说明 INT8 weight-only 的常驻显存收益是成立的。
+- 但 runtime 峰值显存几乎没有明显下降，这说明“权重更小”并没有自然转化为运行期峰值显存收益。
+
+性能结论：
+
+- 当前更关注的是 backend 间真实比较：
+
+  - `native`：当前自定义 CUDA kernel
+  - `cutlass`：CUTLASS backend
+  - `fallback`：Python `dequantize + F.linear`
+- benchmark 的解读方式应改为：
+
+  - `native vs bf16`
+  - `cutlass vs bf16`
+  - `cutlass vs native`
+- 当前结果已经比较明确：
+
+  - `native` 总吞吐只有 bf16 的 `0.744x`
+  - `native` 的 `decode` 还有 `0.865x`
+  - `native` 的 `prefill` 只有 `0.293x`
+  - `cutlass` 当前实现比 `native` 还慢，尤其 `decode` 更差
+
+- 这说明当前瓶颈主要不在“是否命中 Tensor Core 路径”，而在于 `weight-only quantization` 本身仍然需要在运行时把 `int8` 权重恢复成能与 `bf16` 激活参与 GEMM 的形式。
+- 对 `prefill` 这种大矩阵场景，baseline 的 bf16 `F.linear` 底层通常已经命中高度优化的 cuBLAS/cuBLASLt 路径；而 INT8 weight-only 路径即使做了 fused kernel，仍然要承担：
+
+  - `qweight` 读取
+  - `scales` 读取
+  - 反量化
+  - 与高精激活匹配
+
+  这些额外成本。
+
+- 当前实测没有看到“权重更小”带来的明显带宽收益抵消掉上述成本，因此这版 `W8A16` 的主要收益仍然是常驻显存下降，而不是吞吐提升。
+- 结合 native 与 CUTLASS 两条实现的结果，可以先得到一个阶段性判断：
+
+  - 对当前项目和当前 shape 分布而言，仅做 weight-only quantization，吞吐收益很可能就接近这个上限
+  - 继续优化自定义 kernel 仍有空间，但不应预期仅靠“权重变 INT8”就自然带来端到端吞吐提升
+  - 如果后续目标是进一步追求吞吐，可能需要考虑更深的方案，而不只是停留在 `W8A16`
+
+关于 `max_allocated=20.94GiB`：
+
+- `max_allocated` 是进程历史峰值，不等同于模型加载后的常驻显存。
+- `bench_quant.py --mode both` 会在同一进程中先跑 bf16 再跑一个或多个 INT8 backend，历史峰值可能包含 warmup、CUDA graph、benchmark 中的临时峰值。
+- 判断模型常驻显存收益时，应优先看 `memory_allocated` 和 `memory_reserved`。

@@ -24,11 +24,11 @@ def _has_parameter(model: nn.Module, param_name: str) -> bool:
     return True
 
 
-def _validate_int8_loaded(model: nn.Module, loaded_params: set[str]):
+def _validate_quantized_loaded(model: nn.Module, loaded_params: set[str], scale_suffix: str, label: str):
     expected = {
         name
         for name, _ in model.named_parameters()
-        if name.endswith(".qweight") or name.endswith(".scales")
+        if name.endswith(".qweight") or name.endswith(scale_suffix)
     }
     missing = sorted(expected - loaded_params)
     if missing:
@@ -36,7 +36,7 @@ def _validate_int8_loaded(model: nn.Module, loaded_params: set[str]):
         if len(missing) > 8:
             preview += f", ... ({len(missing)} missing total)"
         raise RuntimeError(
-            "Missing INT8 quantized tensors. Expected qweight/scales for quantized "
+            f"Missing {label} quantized tensors. Expected qweight/{scale_suffix[1:]} for quantized "
             f"linear layers, but did not load: {preview}"
         )
 
@@ -63,4 +63,6 @@ def load_model(model: nn.Module, path: str, quantization: str | None = None):
                 else:
                     _load_parameter(model, weight_name, loaded_weight, loaded_params)
     if quantization == "int8":
-        _validate_int8_loaded(model, loaded_params)
+        _validate_quantized_loaded(model, loaded_params, ".scales", "INT8")
+    if quantization == "w8a8":
+        _validate_quantized_loaded(model, loaded_params, ".w_scales", "W8A8")

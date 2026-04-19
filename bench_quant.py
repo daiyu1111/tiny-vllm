@@ -10,13 +10,15 @@ from nanovllm import LLM, SamplingParams
 
 DEFAULT_MODEL = "/mnt/workspace/nano-vllm-main/Qwen3-0.6B/qwen/Qwen3-0___6B"
 DEFAULT_INT8_MODEL = "/mnt/workspace/nano-vllm-main/Qwen3-0.6B/qwen/Qwen3-0___6B-int8"
+DEFAULT_W8A8_MODEL = "/mnt/workspace/nano-vllm-main/Qwen3-0.6B/qwen/Qwen3-0___6B-w8a8"
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Benchmark Nano-vLLM bf16/fp16 vs INT8 weight-only models.")
+    parser = argparse.ArgumentParser(description="Benchmark Nano-vLLM bf16/fp16 vs INT8/W8A8 quantized models.")
     parser.add_argument("--model", default=DEFAULT_MODEL, help="Base model directory used for config/tokenizer.")
     parser.add_argument("--int8-model", default=DEFAULT_INT8_MODEL, help="INT8 quantized model directory.")
-    parser.add_argument("--mode", choices=["bf16", "int8", "both"], default="both")
+    parser.add_argument("--w8a8-model", default=DEFAULT_W8A8_MODEL, help="W8A8 quantized model directory.")
+    parser.add_argument("--mode", choices=["bf16", "int8", "w8a8", "both", "all"], default="all")
     parser.add_argument("--num-seqs", type=int, default=256)
     parser.add_argument("--max-input-len", type=int, default=1024)
     parser.add_argument("--max-output-len", type=int, default=1024)
@@ -122,11 +124,21 @@ def run_one(label: str, args, prompt_token_ids, sampling_params, backend: str | 
         )
         backend = backend or args.int8_backend
         env_snapshot = set_int8_env(backend)
+    elif label == "w8a8":
+        kwargs.update(
+            quantization="w8a8",
+            quantized_model_path=os.path.expanduser(args.w8a8_model),
+        )
+        backend = "native"
+        env_snapshot = {
+            "NANOVLLM_W8A8_BACKEND": os.environ.get("NANOVLLM_W8A8_BACKEND"),
+        }
+        os.environ["NANOVLLM_W8A8_BACKEND"] = backend
 
     try:
         llm = LLM(os.path.expanduser(args.model), **kwargs)
-        run_label = label if label != "int8" else f"{label}[backend={backend}]"
-        if label == "int8":
+        run_label = label if label not in ("int8", "w8a8") else f"{label}[backend={backend}]"
+        if label in ("int8", "w8a8"):
             print(f"{run_label} config")
         print_memory(run_label, llm.model_runner.memory_snapshots["after_model_load"])
 
@@ -185,17 +197,23 @@ def main():
     prompt_token_ids, sampling_params = make_workload(args)
 
     results = {}
-    if args.mode in ("bf16", "both"):
+    if args.mode in ("bf16", "both", "all"):
         results["bf16"] = run_one("bf16", args, prompt_token_ids, sampling_params)
-    if args.mode in ("int8", "both"):
+    if args.mode in ("int8", "both", "all"):
         results["int8"] = run_one("int8", args, prompt_token_ids, sampling_params)
         if args.compare_cutlass and args.int8_backend != "cutlass":
             results["int8_cutlass"] = run_one("int8", args, prompt_token_ids, sampling_params, backend="cutlass")
         if args.compare_native and args.int8_backend != "native":
             results["int8_native"] = run_one("int8", args, prompt_token_ids, sampling_params, backend="native")
+    if args.mode in ("w8a8", "all"):
+        results["w8a8"] = run_one("w8a8", args, prompt_token_ids, sampling_params)
 
     if "bf16" in results and "int8" in results:
         print_ratio("int8/bf16 ratios", results["int8"], results["bf16"])
+    if "bf16" in results and "w8a8" in results:
+        print_ratio("w8a8/bf16 ratios", results["w8a8"], results["bf16"])
+    if "int8" in results and "w8a8" in results:
+        print_ratio("w8a8/int8 ratios", results["w8a8"], results["int8"])
     if "bf16" in results and "int8_cutlass" in results:
         print_ratio("int8_cutlass/bf16 ratios", results["int8_cutlass"], results["bf16"])
     if "bf16" in results and "int8_native" in results:

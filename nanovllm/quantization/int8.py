@@ -17,5 +17,13 @@ class Int8WeightOnlyQuantMethod(QuantMethod):
             requires_grad=False,
         )
 
-    def apply(self, x: torch.Tensor, layer: nn.Module) -> torch.Tensor:
-        return apply_int8_weight_only_linear(x, layer.qweight, layer.scales, layer.bias)
+    def quantize_activation(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor] | None:
+        return None
+
+    def apply(
+        self,
+        x: torch.Tensor,
+        layer: nn.Module,
+        bias: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        return apply_int8_weight_only_linear(x, layer.qweight, layer.scales, layer.bias if bias is None else bias)

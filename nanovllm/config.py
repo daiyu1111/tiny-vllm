@@ -25,7 +25,7 @@ class Config:
         assert os.path.isdir(self.model)
         assert self.kvcache_block_size % 256 == 0
         assert 1 <= self.tensor_parallel_size <= 8
-        if self.quantization not in (None, "int8", "int4_awq"):
+        if self.quantization not in (None, "int8", "w8a8", "int4_awq"):
             raise ValueError(f"Unsupported quantization mode: {self.quantization}")
         if self.quantization == "int4_awq":
             raise NotImplementedError("int4_awq quantization is not implemented yet")

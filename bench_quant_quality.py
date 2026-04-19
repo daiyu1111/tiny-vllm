@@ -34,9 +34,10 @@ BUILTIN_PPL_TEXTS = [
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Evaluate Nano-vLLM INT8 quantization quality.")
+    parser = argparse.ArgumentParser(description="Evaluate Nano-vLLM INT8/W8A8 quantization quality.")
     parser.add_argument("--model", required=True, help="Base model directory.")
     parser.add_argument("--int8-model", required=True, help="INT8 quantized model directory.")
+    parser.add_argument("--w8a8-model", help="W8A8 quantized model directory.")
     parser.add_argument(
         "--mode",
         choices=["artifact", "logits", "ppl", "generation", "all"],
@@ -100,6 +101,13 @@ def match_suffix(name: str, suffixes: dict[str, str]) -> tuple[str, str] | None:
     return None
 
 
+def quant_model_specs(args) -> dict[str, str]:
+    specs = {"int8": args.int8_model}
+    if args.w8a8_model:
+        specs["w8a8"] = args.w8a8_model
+    return specs
+
+
 def build_expected_quant_weights(base_tensors: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
     expected: dict[str, torch.Tensor] = {}
     qkv_groups: dict[str, dict[str, torch.Tensor]] = {}
@@ -141,63 +149,68 @@ def tensor_metrics(reference: torch.Tensor, candidate: torch.Tensor) -> dict[str
 
 
 def run_artifact_check(args) -> dict[str, Any]:
-    result: dict[str, Any] = {"passed": True, "errors": [], "layers": {}, "summary": {}}
+    result: dict[str, Any] = {"passed": True, "errors": [], "comparisons": {}}
     base_tensors = load_tensors(args.model)
-    int8_tensors = load_tensors(args.int8_model)
     expected = build_expected_quant_weights(base_tensors)
-
-    for name, reference in expected.items():
-        q_name = f"{name}.qweight"
-        s_name = f"{name}.scales"
-        layer_result: dict[str, Any] = {
-            "qweight": q_name,
-            "scales": s_name,
-            "reference_shape": list(reference.shape),
+    for label, model_dir in quant_model_specs(args).items():
+        quant_tensors = load_tensors(model_dir)
+        scale_suffix = "w_scales" if label == "w8a8" else "scales"
+        comparison: dict[str, Any] = {"passed": True, "errors": [], "layers": {}, "summary": {}}
+        for name, reference in expected.items():
+            q_name = f"{name}.qweight"
+            s_name = f"{name}.{scale_suffix}"
+            layer_result: dict[str, Any] = {
+                "qweight": q_name,
+                scale_suffix: s_name,
+                "reference_shape": list(reference.shape),
+            }
+            qweight = quant_tensors.get(q_name)
+            scales = quant_tensors.get(s_name)
+            layer_errors = []
+            if qweight is None:
+                layer_errors.append("missing qweight")
+            if scales is None:
+                layer_errors.append(f"missing {scale_suffix}")
+            if qweight is not None:
+                layer_result["qweight_shape"] = list(qweight.shape)
+                layer_result["qweight_dtype"] = str(qweight.dtype)
+                if qweight.dtype != torch.int8:
+                    layer_errors.append(f"qweight dtype is {qweight.dtype}, expected torch.int8")
+                if tuple(qweight.shape) != tuple(reference.shape):
+                    layer_errors.append(f"qweight shape {tuple(qweight.shape)} != reference {tuple(reference.shape)}")
+            if scales is not None:
+                layer_result[f"{scale_suffix}_shape"] = list(scales.shape)
+                layer_result[f"{scale_suffix}_dtype"] = str(scales.dtype)
+                if scales.dtype != torch.float32:
+                    layer_errors.append(f"{scale_suffix} dtype is {scales.dtype}, expected torch.float32")
+                if scales.dim() != 1 or scales.numel() != reference.shape[0]:
+                    layer_errors.append(f"{scale_suffix} shape {tuple(scales.shape)} does not match output channels {reference.shape[0]}")
+            if not layer_errors and qweight is not None and scales is not None:
+                dequant = qweight.float() * scales.float().unsqueeze(1)
+                layer_result["reconstruction"] = tensor_metrics(reference, dequant)
+            else:
+                comparison["passed"] = False
+                comparison["errors"].extend([f"{name}: {error}" for error in layer_errors])
+            layer_result["passed"] = not layer_errors
+            layer_result["errors"] = layer_errors
+            comparison["layers"][name] = layer_result
+        metrics = [
+            layer["reconstruction"]
+            for layer in comparison["layers"].values()
+            if "reconstruction" in layer
+        ]
+        comparison["summary"] = {
+            "expected_layers": len(expected),
+            "checked_layers": len(comparison["layers"]),
+            "passed_layers": sum(1 for layer in comparison["layers"].values() if layer["passed"]),
+            "mean_mae": mean([metric["mae"] for metric in metrics]) if metrics else None,
+            "mean_relative_l2": mean([metric["relative_l2"] for metric in metrics]) if metrics else None,
+            "min_cosine_similarity": min([metric["cosine_similarity"] for metric in metrics]) if metrics else None,
         }
-        qweight = int8_tensors.get(q_name)
-        scales = int8_tensors.get(s_name)
-        layer_errors = []
-        if qweight is None:
-            layer_errors.append("missing qweight")
-        if scales is None:
-            layer_errors.append("missing scales")
-        if qweight is not None:
-            layer_result["qweight_shape"] = list(qweight.shape)
-            layer_result["qweight_dtype"] = str(qweight.dtype)
-            if qweight.dtype != torch.int8:
-                layer_errors.append(f"qweight dtype is {qweight.dtype}, expected torch.int8")
-            if tuple(qweight.shape) != tuple(reference.shape):
-                layer_errors.append(f"qweight shape {tuple(qweight.shape)} != reference {tuple(reference.shape)}")
-        if scales is not None:
-            layer_result["scales_shape"] = list(scales.shape)
-            layer_result["scales_dtype"] = str(scales.dtype)
-            if scales.dtype != torch.float32:
-                layer_errors.append(f"scales dtype is {scales.dtype}, expected torch.float32")
-            if scales.dim() != 1 or scales.numel() != reference.shape[0]:
-                layer_errors.append(f"scales shape {tuple(scales.shape)} does not match output channels {reference.shape[0]}")
-        if not layer_errors and qweight is not None and scales is not None:
-            dequant = qweight.float() * scales.float().unsqueeze(1)
-            layer_result["reconstruction"] = tensor_metrics(reference, dequant)
-        else:
+        result["comparisons"][label] = comparison
+        if not comparison["passed"]:
             result["passed"] = False
-            result["errors"].extend([f"{name}: {error}" for error in layer_errors])
-        layer_result["passed"] = not layer_errors
-        layer_result["errors"] = layer_errors
-        result["layers"][name] = layer_result
-
-    metrics = [
-        layer["reconstruction"]
-        for layer in result["layers"].values()
-        if "reconstruction" in layer
-    ]
-    result["summary"] = {
-        "expected_layers": len(expected),
-        "checked_layers": len(result["layers"]),
-        "passed_layers": sum(1 for layer in result["layers"].values() if layer["passed"]),
-        "mean_mae": mean([metric["mae"] for metric in metrics]) if metrics else None,
-        "mean_relative_l2": mean([metric["relative_l2"] for metric in metrics]) if metrics else None,
-        "min_cosine_similarity": min([metric["cosine_similarity"] for metric in metrics]) if metrics else None,
-    }
+            result["errors"].extend([f"{label}: {error}" for error in comparison["errors"]])
     return result
 
 
@@ -216,6 +229,8 @@ def load_eval_llm(args, label: str) -> LLM:
     kwargs = runtime_kwargs(args)
     if label == "int8":
         kwargs.update({"quantization": "int8", "quantized_model_path": os.path.abspath(args.int8_model)})
+    elif label == "w8a8":
+        kwargs.update({"quantization": "w8a8", "quantized_model_path": os.path.abspath(args.w8a8_model)})
     return LLM(os.path.abspath(args.model), **kwargs)
 
 
@@ -289,23 +304,25 @@ def get_last_logits(args, token_ids_batch: list[list[int]], label: str) -> torch
 def run_logits_check(args) -> dict[str, Any]:
     prompts, token_ids_batch = collect_quality_prompts(args.model, args.max_model_len)
     base_logits = get_last_logits(args, token_ids_batch, "bf16")
-    int8_logits = get_last_logits(args, token_ids_batch, "int8")
     result: dict[str, Any] = {
         "passed": True,
         "errors": [],
         "num_prompts": len(prompts),
         "prompt_token_lengths": [len(ids) for ids in token_ids_batch],
+        "comparisons": {},
     }
-    if tuple(base_logits.shape) != tuple(int8_logits.shape):
-        result["passed"] = False
-        result["errors"].append(f"logits shape mismatch: bf16={tuple(base_logits.shape)} int8={tuple(int8_logits.shape)}")
-        return result
-
-    diff = int8_logits - base_logits
-    row_cos = F.cosine_similarity(base_logits.float(), int8_logits.float(), dim=-1, eps=1e-12)
-    rel_l2 = torch.linalg.vector_norm(diff.float()) / torch.linalg.vector_norm(base_logits.float()).clamp_min(1e-12)
-    result.update(
-        {
+    for label in quant_model_specs(args):
+        compare_logits = get_last_logits(args, token_ids_batch, label)
+        if tuple(base_logits.shape) != tuple(compare_logits.shape):
+            result["passed"] = False
+            result["errors"].append(
+                f"logits shape mismatch: bf16={tuple(base_logits.shape)} {label}={tuple(compare_logits.shape)}"
+            )
+            continue
+        diff = compare_logits - base_logits
+        row_cos = F.cosine_similarity(base_logits.float(), compare_logits.float(), dim=-1, eps=1e-12)
+        rel_l2 = torch.linalg.vector_norm(diff.float()) / torch.linalg.vector_norm(base_logits.float()).clamp_min(1e-12)
+        result["comparisons"][label] = {
             "shape": list(base_logits.shape),
             "cosine_similarity": {
                 "mean": float(row_cos.mean().item()),
@@ -315,12 +332,11 @@ def run_logits_check(args) -> dict[str, Any]:
             "mae": float(diff.abs().mean().item()),
             "relative_l2": float(rel_l2.item()),
             "max_error": float(diff.abs().max().item()),
-            "top1_agreement": float((base_logits.argmax(dim=-1) == int8_logits.argmax(dim=-1)).float().mean().item()),
-            "top5_overlap": topk_overlap(base_logits, int8_logits, 5),
-            "top10_overlap": topk_overlap(base_logits, int8_logits, 10),
-            "top1_margin_buckets": margin_bucket_agreement(base_logits, int8_logits),
+            "top1_agreement": float((base_logits.argmax(dim=-1) == compare_logits.argmax(dim=-1)).float().mean().item()),
+            "top5_overlap": topk_overlap(base_logits, compare_logits, 5),
+            "top10_overlap": topk_overlap(base_logits, compare_logits, 10),
+            "top1_margin_buckets": margin_bucket_agreement(base_logits, compare_logits),
         }
-    )
     return result
 
 
@@ -437,19 +453,19 @@ def run_ppl_check(args) -> dict[str, Any]:
         return result
 
     base = compute_model_nll(args, sequences, "bf16")
-    int8 = compute_model_nll(args, sequences, "int8")
-    loss_delta = int8["loss"] - base["loss"]
-    ppl_delta = int8["ppl"] - base["ppl"]
-    result.update(
-        {
-            "bf16": base,
-            "int8": int8,
+    result["bf16"] = base
+    result["comparisons"] = {}
+    for label in quant_model_specs(args):
+        quant = compute_model_nll(args, sequences, label)
+        loss_delta = quant["loss"] - base["loss"]
+        ppl_delta = quant["ppl"] - base["ppl"]
+        result["comparisons"][label] = {
+            label: quant,
             "loss_absolute_delta": loss_delta,
             "loss_relative_delta": loss_delta / base["loss"] if base["loss"] else None,
             "ppl_absolute_delta": ppl_delta,
             "ppl_relative_delta": ppl_delta / base["ppl"] if base["ppl"] else None,
         }
-    )
     return result
 
 
@@ -500,38 +516,44 @@ def run_generation_check(args) -> dict[str, Any]:
     cases = []
     for prompt, prompt_ids in zip(prompts, token_batches):
         base_ids = argmax_generate(args, prompt_ids, "bf16", args.generation_max_tokens, tokenizer.eos_token_id)
-        int8_ids = argmax_generate(args, prompt_ids, "int8", args.generation_max_tokens, tokenizer.eos_token_id)
-        overlap_len = min(len(base_ids), len(int8_ids))
-        matches = sum(1 for a, b in zip(base_ids, int8_ids) if a == b)
-        token_match_rate = matches / overlap_len if overlap_len else 0.0
-        cases.append(
-            {
-                "prompt": prompt,
-                "prompt_token_count": len(prompt_ids),
-                "bf16_token_ids": base_ids,
-                "int8_token_ids": int8_ids,
-                "bf16_text": tokenizer.decode(base_ids),
-                "int8_text": tokenizer.decode(int8_ids),
+        case = {
+            "prompt": prompt,
+            "prompt_token_count": len(prompt_ids),
+            "bf16_token_ids": base_ids,
+            "bf16_text": tokenizer.decode(base_ids),
+            "bf16_length": len(base_ids),
+            "comparisons": {},
+        }
+        for label in quant_model_specs(args):
+            quant_ids = argmax_generate(args, prompt_ids, label, args.generation_max_tokens, tokenizer.eos_token_id)
+            overlap_len = min(len(base_ids), len(quant_ids))
+            matches = sum(1 for a, b in zip(base_ids, quant_ids) if a == b)
+            token_match_rate = matches / overlap_len if overlap_len else 0.0
+            case["comparisons"][label] = {
+                f"{label}_token_ids": quant_ids,
+                f"{label}_text": tokenizer.decode(quant_ids),
                 "token_match_rate": token_match_rate,
-                "first_diff_position": first_diff_position(base_ids, int8_ids),
-                "bf16_length": len(base_ids),
-                "int8_length": len(int8_ids),
+                "first_diff_position": first_diff_position(base_ids, quant_ids),
+                f"{label}_length": len(quant_ids),
                 "diagnostics": {
                     "bf16_empty": len(base_ids) == 0,
-                    "int8_empty": len(int8_ids) == 0,
+                    f"{label}_empty": len(quant_ids) == 0,
                     "bf16_repeated_token_run": repeated_token_flag(base_ids),
-                    "int8_repeated_token_run": repeated_token_flag(int8_ids),
+                    f"{label}_repeated_token_run": repeated_token_flag(quant_ids),
                     "bf16_ended_with_eos": bool(base_ids and tokenizer.eos_token_id is not None and base_ids[-1] == tokenizer.eos_token_id),
-                    "int8_ended_with_eos": bool(int8_ids and tokenizer.eos_token_id is not None and int8_ids[-1] == tokenizer.eos_token_id),
+                    f"{label}_ended_with_eos": bool(quant_ids and tokenizer.eos_token_id is not None and quant_ids[-1] == tokenizer.eos_token_id),
                 },
             }
-        )
+        cases.append(case)
     return {
         "passed": True,
         "errors": [],
         "max_tokens": args.generation_max_tokens,
         "num_prompts": len(cases),
-        "mean_token_match_rate": mean([case["token_match_rate"] for case in cases]) if cases else None,
+        "mean_token_match_rate": {
+            label: mean([case["comparisons"][label]["token_match_rate"] for case in cases]) if cases else None
+            for label in quant_model_specs(args)
+        },
         "cases": cases,
     }
 
@@ -557,6 +579,7 @@ def build_metadata(args) -> dict[str, Any]:
         "created_at": datetime.now().isoformat(),
         "model": os.path.abspath(args.model),
         "int8_model": os.path.abspath(args.int8_model),
+        "w8a8_model": os.path.abspath(args.w8a8_model) if args.w8a8_model else None,
         "mode": args.mode,
         "tensor_parallel_size": args.tensor_parallel_size,
         "max_model_len": args.max_model_len,

@@ -36,10 +36,10 @@ DIRECT_TARGET_SUFFIXES = ("o_proj.weight", "down_proj.weight")
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Quantize Nano-vLLM Qwen3 linear weights to INT8 weight-only format.")
+    parser = argparse.ArgumentParser(description="Quantize Nano-vLLM Qwen3 linear weights to INT8/W8A8 formats.")
     parser.add_argument("--model", required=True, type=Path, help="Source Hugging Face model directory")
     parser.add_argument("--output", required=True, type=Path, help="Output quantized model directory")
-    parser.add_argument("--quantization", default="int8", choices=["int8"], help="Quantization format to generate")
+    parser.add_argument("--quantization", default="int8", choices=["int8", "w8a8"], help="Quantization format to generate")
     parser.add_argument("--overwrite", action="store_true", help="Remove an existing output directory before writing")
     return parser.parse_args()
 
@@ -76,10 +76,11 @@ def match_suffix(name: str, suffixes: dict[str, str]) -> tuple[str, str] | None:
     return None
 
 
-def quantize_weight(output: dict[str, torch.Tensor], name: str, weight: torch.Tensor):
+def quantize_weight(output: dict[str, torch.Tensor], name: str, weight: torch.Tensor, quantization: str):
     qweight, scales = quantize_int8_per_channel(weight)
     output[f"{name}.qweight"] = qweight.contiguous()
-    output[f"{name}.scales"] = scales.contiguous()
+    scale_name = "w_scales" if quantization == "w8a8" else "scales"
+    output[f"{name}.{scale_name}"] = scales.contiguous()
 
 
 def require_group(groups: dict[str, dict[str, torch.Tensor]], required: tuple[str, ...], label: str):
@@ -89,7 +90,7 @@ def require_group(groups: dict[str, dict[str, torch.Tensor]], required: tuple[st
             raise ValueError(f"Missing {label} shards for {prefix}: {missing}")
 
 
-def build_quantized_tensors(tensors: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+def build_quantized_tensors(tensors: dict[str, torch.Tensor], quantization: str) -> dict[str, torch.Tensor]:
     output = {}
     qkv_weights: dict[str, dict[str, torch.Tensor]] = {}
     qkv_biases: dict[str, dict[str, torch.Tensor]] = {}
@@ -114,7 +115,7 @@ def build_quantized_tensors(tensors: dict[str, torch.Tensor]) -> dict[str, torch
             prefix, shard_id = gate_up_bias
             gate_up_biases.setdefault(prefix, {})[shard_id] = tensor
         elif name.endswith(DIRECT_TARGET_SUFFIXES):
-            quantize_weight(output, name[: -len(".weight")], tensor)
+            quantize_weight(output, name[: -len(".weight")], tensor, quantization)
         else:
             output[name] = tensor.contiguous()
 
@@ -125,13 +126,13 @@ def build_quantized_tensors(tensors: dict[str, torch.Tensor]) -> dict[str, torch
 
     for prefix, shards in qkv_weights.items():
         packed = torch.cat([shards["q"], shards["k"], shards["v"]], dim=0)
-        quantize_weight(output, f"{prefix}qkv_proj", packed)
+        quantize_weight(output, f"{prefix}qkv_proj", packed, quantization)
     for prefix, shards in qkv_biases.items():
         output[f"{prefix}qkv_proj.bias"] = torch.cat([shards["q"], shards["k"], shards["v"]], dim=0).contiguous()
 
     for prefix, shards in gate_up_weights.items():
         packed = torch.cat([shards["gate"], shards["up"]], dim=0)
-        quantize_weight(output, f"{prefix}gate_up_proj", packed)
+        quantize_weight(output, f"{prefix}gate_up_proj", packed, quantization)
     for prefix, shards in gate_up_biases.items():
         output[f"{prefix}gate_up_proj.bias"] = torch.cat([shards["gate"], shards["up"]], dim=0).contiguous()
 
@@ -148,9 +149,9 @@ def main():
 
     copy_model_files(args.model, args.output)
     tensors = load_tensors(args.model)
-    quantized_tensors = build_quantized_tensors(tensors)
+    quantized_tensors = build_quantized_tensors(tensors, args.quantization)
     save_file(quantized_tensors, args.output / "model.safetensors")
-    print(f"Wrote INT8 weight-only model to {args.output}")
+    print(f"Wrote {args.quantization.upper()} quantized model to {args.output}")
 
 
 if __name__ == "__main__":

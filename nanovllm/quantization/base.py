@@ -11,5 +11,14 @@ class QuantMethod(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def apply(self, x: torch.Tensor, layer: nn.Module) -> torch.Tensor:
+    def apply(
+        self,
+        x: torch.Tensor,
+        layer: nn.Module,
+        bias: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        raise NotImplementedError
+
+    @abstractmethod
+    def quantize_activation(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor] | None:
         raise NotImplementedError

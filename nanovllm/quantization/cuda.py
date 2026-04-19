@@ -12,8 +12,10 @@ from nanovllm.utils.context import get_context
 
 _NATIVE_EXTENSION_NAME = "nanovllm_int8_weight_only_cuda"
 _CUTLASS_EXTENSION_NAME = "nanovllm_int8_weight_only_cutlass"
+_W8A8_EXTENSION_NAME = "nanovllm_w8a8_cuda"
 _LOGGED_KERNEL_EVENTS: set[str] = set()
 _SUPPORTED_BACKENDS = {"auto", "native", "fallback", "cutlass"}
+_SUPPORTED_W8A8_BACKENDS = {"native", "fallback"}
 
 
 def _can_use_cuda_kernel(x: torch.Tensor, qweight: torch.Tensor, scales: torch.Tensor) -> bool:
@@ -36,9 +38,19 @@ def _should_log_kernel_path() -> bool:
     return value.lower() not in ("", "0", "false", "off", "no")
 
 
+def _should_log_w8a8_kernel_path() -> bool:
+    value = os.environ.get("NANOVLLM_W8A8_LOG_PATH", "")
+    return value.lower() not in ("", "0", "false", "off", "no")
+
+
 def _get_backend_preference() -> str:
     value = os.environ.get("NANOVLLM_INT8_BACKEND", "native").strip().lower()
     return value if value in _SUPPORTED_BACKENDS else "native"
+
+
+def _get_w8a8_backend_preference() -> str:
+    value = os.environ.get("NANOVLLM_W8A8_BACKEND", "native").strip().lower()
+    return value if value in _SUPPORTED_W8A8_BACKENDS else "native"
 
 
 def _get_phase() -> str:
@@ -46,7 +58,7 @@ def _get_phase() -> str:
 
 
 def _log_kernel_event_once(event: str, message: str) -> None:
-    if not _should_log_kernel_path() or event in _LOGGED_KERNEL_EVENTS:
+    if event in _LOGGED_KERNEL_EVENTS:
         return
     _LOGGED_KERNEL_EVENTS.add(event)
     print(message)
@@ -61,11 +73,36 @@ def _log_backend_event_once(
     qweight: torch.Tensor,
     reason: str | None = None,
 ) -> None:
-    event = f"{backend}:{phase}:{path}:{reason or ''}:{x.dtype}"
+    if not _should_log_kernel_path():
+        return
+    event = f"int8:{backend}:{phase}:{path}:{reason or ''}:{x.dtype}"
     message = (
         "[nanovllm.int8] "
         f"backend={backend} phase={phase} path={path} "
         f"x_dtype={x.dtype} x_shape={tuple(x.shape)} qweight_shape={tuple(qweight.shape)}"
+    )
+    if reason is not None:
+        message += f" reason={reason}"
+    _log_kernel_event_once(event, message)
+
+
+def _log_w8a8_backend_event_once(
+    *,
+    backend: str,
+    phase: str,
+    path: str,
+    x_q: torch.Tensor,
+    qweight: torch.Tensor,
+    out_dtype: torch.dtype,
+    reason: str | None = None,
+) -> None:
+    if not _should_log_w8a8_kernel_path():
+        return
+    event = f"w8a8:{backend}:{phase}:{path}:{reason or ''}:{out_dtype}"
+    message = (
+        "[nanovllm.w8a8] "
+        f"backend={backend} phase={phase} path={path} "
+        f"out_dtype={out_dtype} x_q_shape={tuple(x_q.shape)} qweight_shape={tuple(qweight.shape)}"
     )
     if reason is not None:
         message += f" reason={reason}"
@@ -157,6 +194,30 @@ def _load_cutlass_extension():
         extra_cflags=["-O3"],
         extra_cuda_cflags=extra_cuda_cflags,
         extra_include_paths=include_dirs,
+        verbose=False,
+    )
+
+
+@lru_cache(maxsize=1)
+def _load_w8a8_extension():
+    from torch.utils.cpp_extension import load
+
+    this_dir = Path(__file__).resolve().parent
+    sources = [
+        str(this_dir / "csrc" / "w8a8_gemm.cpp"),
+        str(this_dir / "csrc" / "w8a8_gemm.cu"),
+    ]
+    extra_cuda_cflags = [
+        "-O3",
+        "--use_fast_math",
+    ]
+    if os.name != "nt":
+        extra_cuda_cflags.append("--expt-relaxed-constexpr")
+    return load(
+        name=_W8A8_EXTENSION_NAME,
+        sources=sources,
+        extra_cflags=["-O3"],
+        extra_cuda_cflags=extra_cuda_cflags,
         verbose=False,
     )
 
@@ -303,3 +364,141 @@ def apply_int8_weight_only_linear(
         reason=f"unknown_backend {backend}",
     )
     return int8_weight_only_linear_fallback(x, qweight, scales, bias)
+
+
+def _can_use_w8a8_kernel(
+    x_q: torch.Tensor,
+    a_scales: torch.Tensor,
+    qweight: torch.Tensor,
+    w_scales: torch.Tensor,
+    out_dtype: torch.dtype,
+) -> bool:
+    return (
+        torch.cuda.is_available()
+        and x_q.is_cuda
+        and a_scales.is_cuda
+        and qweight.is_cuda
+        and w_scales.is_cuda
+        and x_q.dtype == torch.int8
+        and qweight.dtype == torch.int8
+        and a_scales.dtype == torch.float32
+        and w_scales.dtype == torch.float32
+        and out_dtype in (torch.float16, torch.bfloat16)
+        and x_q.dim() == 2
+        and qweight.dim() == 2
+        and x_q.numel() > 0
+        and qweight.numel() > 0
+    )
+
+
+def _run_w8a8_extension_linear(
+    extension_loader,
+    *,
+    backend: str,
+    x_q: torch.Tensor,
+    a_scales: torch.Tensor,
+    qweight: torch.Tensor,
+    w_scales: torch.Tensor,
+    bias: torch.Tensor | None,
+    out_dtype: torch.dtype,
+) -> torch.Tensor:
+    if not _can_use_w8a8_kernel(x_q, a_scales, qweight, w_scales, out_dtype):
+        raise RuntimeError("CUDA W8A8 backend does not support the provided tensors")
+    if x_q.shape[-1] != qweight.shape[-1]:
+        raise RuntimeError(f"Incompatible shapes: x_q[-1]={x_q.shape[-1]} vs qweight[-1]={qweight.shape[-1]}")
+    if a_scales.dim() != 1 or a_scales.numel() != x_q.shape[0]:
+        raise RuntimeError("a_scales must be 1D with one value per input row")
+    if w_scales.dim() != 1 or w_scales.numel() != qweight.shape[0]:
+        raise RuntimeError("w_scales must be 1D with one value per output channel")
+    if bias is not None and (bias.dim() != 1 or bias.numel() != qweight.shape[0]):
+        raise RuntimeError("bias must be 1D with one value per output channel")
+
+    x_q = x_q.contiguous()
+    a_scales = a_scales.contiguous()
+    qweight = qweight.contiguous()
+    w_scales = w_scales.contiguous()
+    bias = None if bias is None else bias.contiguous()
+
+    extension = extension_loader()
+    path = extension.select_path(x_q, qweight)
+    _log_w8a8_backend_event_once(
+        backend=backend,
+        phase=_get_phase(),
+        path=path,
+        x_q=x_q,
+        qweight=qweight,
+        out_dtype=out_dtype,
+    )
+    return extension.forward(x_q, a_scales, qweight, w_scales, bias, out_dtype == torch.bfloat16)
+
+
+def native_w8a8_linear(
+    x_q: torch.Tensor,
+    a_scales: torch.Tensor,
+    qweight: torch.Tensor,
+    w_scales: torch.Tensor,
+    bias: torch.Tensor | None = None,
+    out_dtype: torch.dtype = torch.float16,
+) -> torch.Tensor:
+    return _run_w8a8_extension_linear(
+        _load_w8a8_extension,
+        backend="native",
+        x_q=x_q,
+        a_scales=a_scales,
+        qweight=qweight,
+        w_scales=w_scales,
+        bias=bias,
+        out_dtype=out_dtype,
+    )
+
+
+def w8a8_linear_fallback(
+    x_q: torch.Tensor,
+    a_scales: torch.Tensor,
+    qweight: torch.Tensor,
+    w_scales: torch.Tensor,
+    bias: torch.Tensor | None = None,
+    out_dtype: torch.dtype = torch.float16,
+) -> torch.Tensor:
+    x = x_q.to(out_dtype) * a_scales.to(out_dtype).unsqueeze(1)
+    weight = qweight.to(out_dtype) * w_scales.to(out_dtype).unsqueeze(1)
+    return F.linear(x, weight, bias)
+
+
+def apply_w8a8_linear(
+    x_q: torch.Tensor,
+    a_scales: torch.Tensor,
+    qweight: torch.Tensor,
+    w_scales: torch.Tensor,
+    bias: torch.Tensor | None = None,
+    out_dtype: torch.dtype = torch.float16,
+    out_shape: tuple[int, ...] | None = None,
+) -> torch.Tensor:
+    backend = _get_w8a8_backend_preference()
+    if backend == "fallback":
+        _log_w8a8_backend_event_once(
+            backend="fallback",
+            phase=_get_phase(),
+            path="python_fallback",
+            x_q=x_q,
+            qweight=qweight,
+            out_dtype=out_dtype,
+            reason="backend_forced_fallback",
+        )
+        y = w8a8_linear_fallback(x_q, a_scales, qweight, w_scales, bias, out_dtype)
+        return y if out_shape is None else y.view(out_shape)
+
+    try:
+        y = native_w8a8_linear(x_q, a_scales, qweight, w_scales, bias, out_dtype)
+    except Exception as exc:
+        _log_w8a8_backend_event_once(
+            backend="fallback",
+            phase=_get_phase(),
+            path="python_fallback",
+            x_q=x_q,
+            qweight=qweight,
+            out_dtype=out_dtype,
+            reason=f"native_unavailable {type(exc).__name__}: {exc}",
+        )
+        y = w8a8_linear_fallback(x_q, a_scales, qweight, w_scales, bias, out_dtype)
+    return y if out_shape is None else y.view(out_shape)
