@@ -767,13 +767,11 @@ int8_cutlass/bf16 ratios: ...
   - `native`：当前自定义 CUDA kernel
   - `cutlass`：CUTLASS backend
   - `fallback`：Python `dequantize + F.linear`
-
 - benchmark 的解读方式应改为：
 
   - `native vs bf16`
   - `cutlass vs bf16`
   - `cutlass vs native`
-
 - 不再使用“当前还是纯 `F.linear` 路径”来解释结果，因为这只对应 `fallback` backend，不再代表默认实现。
 
 关于 `max_allocated=20.94GiB`：
@@ -1434,7 +1432,6 @@ def apply_int8_weight_only_linear(
    - 不设置环境变量时，默认走 `native`
    - `auto` 会先尝试 `cutlass`，再回退到 `native`
    - `fallback` 会直接走 Python 反量化路径
-
 2. Native CUDA backend
 
    当前自定义 CUDA backend 由：
@@ -1451,7 +1448,6 @@ def apply_int8_weight_only_linear(
    - `scales` 保持 `float32`
    - 对符合条件的输入会尝试走 `wmma_fp16` 或 `wmma_bf16`
    - 不满足条件时退到文件内的 `fallback_cuda`
-
 3. CUTLASS backend
 
    当前新增了独立的 CUTLASS backend：
@@ -1471,7 +1467,6 @@ def apply_int8_weight_only_linear(
    - 它已经是独立的 `cutlass` backend
    - 但它还不是最终版的“最优 fused dequant + GEMM”实现
    - 当前主要用途是与 `native` 做真实 A/B benchmark
-
 4. 日志与路径观测
 
    打开：
@@ -1485,7 +1480,6 @@ def apply_int8_weight_only_linear(
    - `backend=native path=wmma_bf16`
    - `backend=cutlass path=cutlass_bf16_gemm`
    - `backend=fallback path=python_fallback`
-
 5. 线性层接入
 
    [nanovllm/quantization/int8.py](/E:/llmegine/nano-vllm-main/nano-vllm-main/nanovllm/quantization/int8.py) 与 [nanovllm/layers/linear.py](/E:/llmegine/nano-vllm-main/nano-vllm-main/nanovllm/layers/linear.py) 仍然统一复用 `apply_int8_weight_only_linear(...)`，因此：
@@ -1549,8 +1543,13 @@ NANOVLLM_INT8_LOG_PATH=1 python bench_quant.py --mode both --enforce-eager --int
 如果想同时比较 CUTLASS：
 
 ```bash
+export NANOVLLM_CUTLASS_INCLUDE=/usr/local/lib/python3.11/site-packages/flashinfer/data/cutlass/include
+
+
+
+
 NANOVLLM_INT8_LOG_PATH=1 \
-NANOVLLM_CUTLASS_INCLUDE=/path/to/cutlass/include \
+NANOVLLM_CUTLASS_INCLUDE=/usr/local/lib/python3.11/site-packages/flashinfer/data/cutlass/include \
 python bench_quant.py --mode both --enforce-eager --int8-backend native --compare-cutlass
 ```
 
@@ -1558,7 +1557,7 @@ python bench_quant.py --mode both --enforce-eager --int8-backend native --compar
 
 ```bash
 NANOVLLM_INT8_LOG_PATH=1 \
-NANOVLLM_CUTLASS_INCLUDE=/path/to/cutlass/include \
+NANOVLLM_CUTLASS_INCLUDE=/usr/local/lib/python3.11/site-packages/flashinfer/data/cutlass/include \
 python bench_quant.py --mode int8 --enforce-eager --int8-backend cutlass
 ```
 
@@ -1593,7 +1592,6 @@ python bench_quant_quality.py \
   - `CUTLASS_PATH`
 
   如果这些都没设置，还会尝试若干固定路径，例如 `/usr/local/include`、`/usr/local/cutlass/include`、`/opt/cutlass/include`。
-
 - 当前 `native` backend 支持 CUDA、`fp16/bf16` 激活、`int8` 权重、`float32` scales。
 - 当前 `cutlass` backend 已可作为独立 backend 参与 benchmark，但实现上仍是“先转高精，再调用 CUTLASS GEMM”的过渡版，不应把它误认为最终的最优 fused kernel。
 - 当前日志不是静默回退；打开 `NANOVLLM_INT8_LOG_PATH=1` 后，可以直接看到实际命中的 backend 与 path。
