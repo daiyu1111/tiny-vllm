@@ -1,0 +1,92 @@
+{
+  "metadata": {
+    "created_at": "2026-04-19T20:47:37.904153",
+    "model": "/mnt/workspace/nano-vllm-main/Qwen3-0.6B/qwen/Qwen3-0___6B",
+    "int8_model": "/mnt/workspace/nano-vllm-main/Qwen3-0.6B/qwen/Qwen3-0___6B-int8",
+    "w8a8_model": "/mnt/workspace/nano-vllm-main/Qwen3-0.6B/qwen/Qwen3-0___6B-w8a8",
+    "mode": "ppl",
+    "tensor_parallel_size": 1,
+    "max_model_len": 4096,
+    "max_num_seqs": 512,
+    "max_num_batched_tokens": 16384,
+    "gpu_memory_utilization": 0.9,
+    "ppl": {
+      "source": "hf-dataset",
+      "hf_dataset": "wikitext",
+      "hf_dataset_config": "wikitext-2-raw-v1",
+      "hf_dataset_split": "test",
+      "hf_endpoint": "https://hf-mirror.com",
+      "max_samples": 16,
+      "max_seq_len": 1024,
+      "stride": 512
+    },
+    "runtime": {
+      "cuda_available": true,
+      "cuda_version": "12.8",
+      "pytorch_version": "2.9.1+cu128",
+      "device_index": 0,
+      "gpu_name": "NVIDIA A10",
+      "gpu_total_memory": 25420955648
+    }
+  },
+  "artifact_check": null,
+  "logits_check": null,
+  "ppl_check": {
+    "passed": true,
+    "errors": [],
+    "source": "hf-dataset",
+    "source_info": {
+      "dataset": "wikitext",
+      "config": "wikitext-2-raw-v1",
+      "split": "test",
+      "endpoint": "https://hf-mirror.com",
+      "num_texts": 16
+    },
+    "max_seq_len": 1024,
+    "stride": 512,
+    "num_sequences": 16,
+    "bf16": {
+      "loss": 3.647499652151334,
+      "ppl": 38.37858616716677,
+      "num_tokens": 1475,
+      "num_windows": 16
+    },
+    "comparisons": {
+      "int8": {
+        "int8": {
+          "loss": 3.6559271472995563,
+          "ppl": 38.70338822742269,
+          "num_tokens": 1475,
+          "num_windows": 16
+        },
+        "loss_absolute_delta": 0.008427495148222164,
+        "loss_relative_delta": 0.0023104855248585253,
+        "ppl_absolute_delta": 0.3248020602559194,
+        "ppl_relative_delta": 0.008463106453196822
+      },
+      "w8a8": {
+        "w8a8": {
+          "loss": 3.6796664609747416,
+          "ppl": 39.63317265799006,
+          "num_tokens": 1475,
+          "num_windows": 16
+        },
+        "loss_absolute_delta": 0.0321668088234075,
+        "loss_relative_delta": 0.008818865494458697,
+        "ppl_absolute_delta": 1.2545864908232858,
+        "ppl_relative_delta": 0.03268975270111946
+      }
+    }
+  },
+  "generation_check": null,
+  "summary": {
+    "passed": true,
+    "stages": {
+      "artifact_check": null,
+      "logits_check": null,
+      "ppl_check": true,
+      "generation_check": null
+    },
+    "failures": []
+  }
+}

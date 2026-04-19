@@ -1,0 +1,94 @@
+{
+  "metadata": {
+    "created_at": "2026-04-18T22:45:08.042624",
+    "model": "/mnt/workspace/nano-vllm-main/Qwen3-0.6B/qwen/Qwen3-0___6B",
+    "int8_model": "/mnt/workspace/nano-vllm-main/Qwen3-0.6B/qwen/Qwen3-0___6B-int8",
+    "mode": "logits",
+    "tensor_parallel_size": 1,
+    "max_model_len": 4096,
+    "max_num_seqs": 512,
+    "max_num_batched_tokens": 16384,
+    "gpu_memory_utilization": 0.9,
+    "ppl": {
+      "source": "hf-dataset",
+      "hf_dataset": "wikitext",
+      "hf_dataset_config": "wikitext-2-raw-v1",
+      "hf_dataset_split": "test",
+      "max_samples": 16,
+      "max_seq_len": 1024,
+      "stride": 512
+    },
+    "runtime": {
+      "cuda_available": true,
+      "cuda_version": "12.8",
+      "pytorch_version": "2.9.1+cu128",
+      "device_index": 0,
+      "gpu_name": "NVIDIA A10",
+      "gpu_total_memory": 25420955648
+    }
+  },
+  "artifact_check": null,
+  "logits_check": {
+    "passed": true,
+    "errors": [],
+    "num_prompts": 11,
+    "prompt_token_lengths": [
+      13,
+      20,
+      17,
+      29,
+      27,
+      23,
+      128,
+      94,
+      70,
+      135,
+      105
+    ],
+    "shape": [
+      11,
+      151936
+    ],
+    "cosine_similarity": {
+      "mean": 0.9994365572929382,
+      "min": 0.9993352890014648,
+      "p05": 0.9993352890014648
+    },
+    "mae": 0.19969487190246582,
+    "relative_l2": 0.0362546481192112,
+    "max_error": 1.28125,
+    "top1_agreement": 1.0,
+    "top5_overlap": 0.9636363636363636,
+    "top10_overlap": 0.9181818181818182,
+    "top1_margin_buckets": {
+      "lt_0_01": {
+        "count": 0,
+        "agreement": null
+      },
+      "0_01_to_0_1": {
+        "count": 0,
+        "agreement": null
+      },
+      "0_1_to_1": {
+        "count": 0,
+        "agreement": null
+      },
+      "gte_1": {
+        "count": 11,
+        "agreement": 1.0
+      }
+    }
+  },
+  "ppl_check": null,
+  "generation_check": null,
+  "summary": {
+    "passed": true,
+    "stages": {
+      "artifact_check": null,
+      "logits_check": true,
+      "ppl_check": null,
+      "generation_check": null
+    },
+    "failures": []
+  }
+}

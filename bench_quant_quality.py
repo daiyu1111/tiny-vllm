@@ -7,6 +7,7 @@ import math
 import os
 import sys
 import traceback
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from statistics import mean
@@ -54,6 +55,11 @@ def parse_args():
     parser.add_argument("--hf-dataset", default="wikitext", help="Hugging Face dataset name.")
     parser.add_argument("--hf-dataset-config", default="wikitext-2-raw-v1", help="Hugging Face dataset config.")
     parser.add_argument("--hf-dataset-split", default="test", help="Hugging Face dataset split.")
+    parser.add_argument(
+        "--hf-endpoint",
+        default=os.environ.get("HF_ENDPOINT"),
+        help="Optional Hugging Face Hub endpoint or mirror, for example https://hf-mirror.com .",
+    )
     parser.add_argument("--ppl-text-file", help="Local UTF-8 text file for PPL evaluation.")
     parser.add_argument("--ppl-token-ids-json", help="JSON file containing token ids or list of token id lists.")
     parser.add_argument("--ppl-max-samples", type=int, default=16, help="Maximum PPL text samples to evaluate.")
@@ -106,6 +112,34 @@ def quant_model_specs(args) -> dict[str, str]:
     if args.w8a8_model:
         specs["w8a8"] = args.w8a8_model
     return specs
+
+
+@contextmanager
+def temporary_hf_endpoint(endpoint: str | None):
+    if not endpoint:
+        yield
+        return
+
+    normalized = endpoint.rstrip("/")
+    env_keys = (
+        "HF_ENDPOINT",
+        "HUGGINGFACE_HUB_BASE_URL",
+        "HUGGINGFACE_CO_URL_HOME",
+        "HUGGINGFACE_CO_RESOLVE_ENDPOINT",
+    )
+    previous = {key: os.environ.get(key) for key in env_keys}
+    os.environ["HF_ENDPOINT"] = normalized
+    os.environ["HUGGINGFACE_HUB_BASE_URL"] = normalized
+    os.environ["HUGGINGFACE_CO_URL_HOME"] = normalized
+    os.environ["HUGGINGFACE_CO_RESOLVE_ENDPOINT"] = normalized
+    try:
+        yield
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
 def build_expected_quant_weights(base_tensors: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
@@ -376,7 +410,8 @@ def load_ppl_token_sequences(args, tokenizer) -> tuple[str, list[list[int]], dic
                 "PPL source 'hf-dataset' requires the optional dependency 'datasets'. "
                 "Install it with: pip install datasets"
             ) from exc
-        dataset = load_dataset(args.hf_dataset, args.hf_dataset_config, split=args.hf_dataset_split)
+        with temporary_hf_endpoint(args.hf_endpoint):
+            dataset = load_dataset(args.hf_dataset, args.hf_dataset_config, split=args.hf_dataset_split)
         texts = []
         for row in dataset:
             text = str(row.get("text", "")).strip()
@@ -388,6 +423,7 @@ def load_ppl_token_sequences(args, tokenizer) -> tuple[str, list[list[int]], dic
             "dataset": args.hf_dataset,
             "config": args.hf_dataset_config,
             "split": args.hf_dataset_split,
+            "endpoint": args.hf_endpoint,
             "num_texts": len(texts),
         }
     raise ValueError(f"Unsupported PPL source: {args.ppl_source}")
@@ -591,6 +627,7 @@ def build_metadata(args) -> dict[str, Any]:
             "hf_dataset": args.hf_dataset,
             "hf_dataset_config": args.hf_dataset_config,
             "hf_dataset_split": args.hf_dataset_split,
+            "hf_endpoint": args.hf_endpoint,
             "max_samples": args.ppl_max_samples,
             "max_seq_len": args.ppl_max_seq_len,
             "stride": args.ppl_stride,
