@@ -584,7 +584,6 @@ packed 层建议在离线量化阶段直接生成 packed 后的权重：
    ```
 
    当前第一版只真正支持 `quantization="int8"`。`int4_awq` 和 `quantize_lm_head=True` 会显式抛出 `NotImplementedError`，避免用户误以为这些路径已经可用。
-
 2. 量化抽象层
 
    新增 `nanovllm/quantization/`：
@@ -606,7 +605,6 @@ packed 层建议在离线量化阶段直接生成 packed 后的权重：
    weight = qweight.to(x.dtype) * scales.to(x.dtype).unsqueeze(1)
    output = F.linear(x, weight, bias)
    ```
-
 3. 线性层
 
    在 `nanovllm/layers/linear.py` 中让 `LinearBase` 同时支持两种权重表示：
@@ -627,7 +625,6 @@ packed 层建议在离线量化阶段直接生成 packed 后的权重：
    - `qkv_proj` 在 Tensor Parallel 下按 `q/k/v` 三段分别切分，再装入 rank-local packed 参数。
    - `gate_up_proj` 在 Tensor Parallel 下按 `gate/up` 两段分别切分，再装入 rank-local packed 参数。
    - `RowParallelLinear` 的 `qweight` 按输入维度切分，`scales` 不按输入维度切分。
-
 4. Qwen3 模型层
 
    在 `nanovllm/models/qwen3.py` 中通过 `hf_config.nanovllm_quantization` 将量化模式传给 Transformer 主干线性层。
@@ -648,7 +645,6 @@ packed 层建议在离线量化阶段直接生成 packed 后的权重：
    - Attention kernel
    - KV cache
    - sampler
-
 5. 权重加载器
 
    在 `nanovllm/utils/loader.py` 中扩展加载逻辑：
@@ -658,7 +654,6 @@ packed 层建议在离线量化阶段直接生成 packed 后的权重：
    - `quantization="int8"` 时会检查所有量化线性层的 `.qweight` 和 `.scales` 是否都已加载，缺失时直接报清晰错误。
 
    这个顺序很重要，因为 INT8 产物已经是 packed 后的名字。如果仍然先走旧 mapping，`gate_up_proj.qweight` 中的 `up_proj` 会被误替换，形成错误的 `gate_gate_up_proj.qweight`。
-
 6. 离线量化脚本
 
    新增 `scripts/quantize.py`，用于从原始 Hugging Face safetensors 生成 Nano-vLLM 可直接加载的 INT8 目录。
@@ -671,7 +666,6 @@ packed 层建议在离线量化阶段直接生成 packed 后的权重：
    - 将 `o_proj.weight`、`down_proj.weight` 直接量化。
    - 非目标张量原样复制。
    - 复制 tokenizer/config 等非权重文件，让量化目录可以独立保存和分发。
-
 7. Benchmark 脚本
 
    新增 `bench_quant.py`，用于对比原模型和 INT8 模型的：
@@ -698,7 +692,6 @@ packed 层建议在离线量化阶段直接生成 packed 后的权重：
    ```text
    Wrote INT8 weight-only model to Qwen3-0.6B/qwen/Qwen3-0___6B-int8
    ```
-
 2. 单条生成 smoke test
 
    ```python
@@ -729,7 +722,6 @@ packed 层建议在离线量化阶段直接生成 packed 后的权重：
    ```
 
    该测试用于确认 INT8 模型可以加载、前向、采样并输出正常文本。
-
 3. 快速 benchmark
 
    ```bash
@@ -742,7 +734,6 @@ packed 层建议在离线量化阶段直接生成 packed 后的权重：
    ```
 
    该命令适合先做快速验证，避免一上来跑完整压力测试。
-
 4. 完整 benchmark
 
    ```bash
@@ -753,32 +744,42 @@ packed 层建议在离线量化阶段直接生成 packed 后的权重：
 
 ### 当前实测结果
 
-在 `Qwen3-0.6B` 上，使用 `bench_quant.py --mode both` 的一次实测结果如下：
+在 `Qwen3-0.6B` 上，旧的 `INT8 = dequantize + F.linear` 基线已经不再代表当前实现。现在更建议把结果按 backend 记录，例如：
 
 ```text
-bf16 memory after load: allocated=1.13GiB, reserved=1.48GiB, max_allocated=1.42GiB
-bf16 total: 133966tok, time=38.15s, throughput=3511.81tok/s
-int8 memory after load: allocated=0.74GiB, reserved=1.05GiB, max_allocated=20.94GiB
-int8 total: 133966tok, time=48.28s, throughput=2774.69tok/s
-int8/bf16 throughput ratio: 0.790x
+bf16 memory after load: ...
+bf16 total: ...
+int8[backend=native] total: ...
+int8[backend=cutlass] total: ...
+int8_native/bf16 ratios: ...
+int8_cutlass/bf16 ratios: ...
 ```
 
 显存结论：
 
-- `memory_allocated` 从 `1.13GiB` 降到 `0.74GiB`，下降约 `34.5%`。
-- `memory_reserved` 从 `1.48GiB` 降到 `1.05GiB`，下降约 `29%`。
-- 这说明 INT8 weight-only 已经有效降低模型加载后的常驻显存。
+- 重点仍然看 `memory_allocated` 与 `memory_reserved`，它们更接近模型加载后的常驻显存。
+- 若 `int8[backend=native]` 或 `int8[backend=cutlass]` 的加载显存低于 bf16 baseline，就说明 INT8 weight-only 的常驻显存收益仍然成立。
 
 性能结论：
 
-- INT8 吞吐约为 bf16 的 `0.790x`。
-- 这是第一版朴素实现的预期结果，不代表量化失败。
-- 原因是当前前向仍然会在每次线性层计算前执行 `qweight -> runtime dtype` 的反量化，然后再调用 `F.linear`，没有使用 fused INT8 GEMM kernel。
+- 当前更关注的是 backend 间真实比较：
+
+  - `native`：当前自定义 CUDA kernel
+  - `cutlass`：CUTLASS backend
+  - `fallback`：Python `dequantize + F.linear`
+
+- benchmark 的解读方式应改为：
+
+  - `native vs bf16`
+  - `cutlass vs bf16`
+  - `cutlass vs native`
+
+- 不再使用“当前还是纯 `F.linear` 路径”来解释结果，因为这只对应 `fallback` backend，不再代表默认实现。
 
 关于 `max_allocated=20.94GiB`：
 
 - `max_allocated` 是进程历史峰值，不等同于模型加载后的常驻显存。
-- `bench_quant.py --mode both` 会在同一进程中先跑 bf16 再跑 INT8，历史峰值可能包含 warmup、CUDA graph、benchmark 中的临时峰值。
+- `bench_quant.py --mode both` 会在同一进程中先跑 bf16 再跑一个或多个 INT8 backend，历史峰值可能包含 warmup、CUDA graph、benchmark 中的临时峰值。
 - 判断模型常驻显存收益时，应优先看 `memory_allocated` 和 `memory_reserved`。
 
 ### 量化质量评估落地方案
@@ -827,7 +828,6 @@ python bench_quant_quality.py \
    - 反量化权重与原始浮点权重的 per-layer MAE、max error、cosine similarity。
 
    这一层应作为硬门禁。任何目标层缺失、shape 不一致、dtype 不一致、scale 维度错误，都应直接失败。
-
 2. P0：快速 logits 错误验证
 
    固定少量 prompt，对比 bf16 和 INT8 的 logits 分布，快速发现运行时加载、TP shard、packed 顺序或反量化计算错误。
@@ -848,7 +848,6 @@ python bench_quant_quality.py \
    - 连续确认结果稳定后，再冻结阈值，作为后续 fused kernel 或 INT4 扩展的回归门禁。
 
    这一层优先级最高，因为它反馈快，比直接跑 perplexity 更容易定位实现问题。它主要用于发现 `qkv_proj` / `gate_up_proj` packed 顺序、`scales` 切分、`RowParallelLinear` shard、loader 映射等错误。
-
 3. P1：困惑度 / loss 评估
 
    在 P0 通过后，再使用更标准的语言建模指标评估量化质量。
@@ -866,7 +865,6 @@ python bench_quant_quality.py \
    这一层用于判断 INT8 weight-only 是否造成可接受范围内的语言建模质量退化。
 
    P1 不建议一开始设过严阈值。第一版可以先要求 loss / ppl delta 进入可解释范围，并把真实结果写入报告；等 P0/P1 的固定数据集稳定后，再定义硬阈值。
-
 4. P2：确定性生成质量对比
 
    当前 `SamplingParams` 禁止 `temperature=0`，采样器也使用随机采样。因此 P2 不能直接写成“设置 `temperature=0` 后调用 `generate`”。落地时应二选一：
@@ -886,7 +884,6 @@ python bench_quant_quality.py \
    - 人工可读的 prompt / output 摘要
 
    这一层不应把 token match rate 作为唯一硬门禁。自回归生成中，早期一个 token 的轻微差异就可能让后续文本完全分叉。更合理的做法是把 token match rate 和 first diff position 作为诊断指标，把乱码、异常重复、提前崩坏、明显语义漂移等作为失败信号。它用于补充 perplexity，观察真实生成路径是否稳定。
-
 5. P3：后续任务 benchmark
 
    更完整的任务 benchmark 可以作为后续扩展，不作为第一阶段阻塞项。
@@ -924,7 +921,6 @@ python bench_quant_quality.py \
    - cosine similarity
 
    这一层是硬检查。目标层缺失、dtype 错误、shape 不一致或 scale 维度错误都会在报告中标记失败。
-
 2. P0：logits 分布对比
 
    脚本会使用 `scripts/benchmark_cases.py` 中的固定文本 prompt，分别加载 bf16 原模型和 INT8 模型，取每条 prompt 最后位置的 logits 做对比。
@@ -940,7 +936,6 @@ python bench_quant_quality.py \
    - 按 top-1 margin 分桶后的 agreement
 
    第一版 logits 指标是 record-only。只有运行异常或 bf16 / INT8 logits shape 不一致会被视为失败。
-
 3. P1：loss / perplexity 对比
 
    脚本支持四种 PPL 数据来源：
@@ -957,7 +952,6 @@ python bench_quant_quality.py \
    ```
 
    PPL 计算采用 causal LM 方式：用 `logits[:-1]` 预测 `tokens[1:]`，并记录 bf16 / INT8 的 loss、ppl、absolute delta、relative delta、参与 token 数和窗口数量。
-
 4. P2：确定性生成对比
 
    当前没有修改 `SamplingParams`，也没有改变正常 `LLM.generate()` 的随机采样行为。质量脚本内部绕过 sampler，逐步调用 logits 前向并取 `argmax(logits)` 做确定性回放。
@@ -1095,7 +1089,6 @@ python bench_quant_quality.py \
    但在实现 Triton fused dequant GEMM 或专用 INT8 GEMM kernel 之前，应先完成 P0/P1/P2 质量评估，确认当前 INT8 weight-only 路径没有明显量化错误或语义退化。
 
    质量基线通过后，再将 `dequantize + GEMM` 融合到更高效的 kernel 中，减少临时张量和内存带宽开销。fused kernel 完成后必须重复同一套质量评估，确认性能优化没有引入额外数值误差。
-
 2. 增强 benchmark 统计
 
    `bench_quant.py` 后续可以进一步拆分统计：
@@ -1108,7 +1101,6 @@ python bench_quant_quality.py \
    - 每个阶段 reset peak 后的峰值显存
 
    这样可以更清楚地区分“模型权重显存收益”和“运行时临时内存峰值”。
-
 3. 扩展回归覆盖
 
    当前已验证单卡 INT8 可以生成和 benchmark。后续还需要继续覆盖：
@@ -1117,7 +1109,6 @@ python bench_quant_quality.py \
    - `enforce_eager=False`
    - prefix cache 命中场景
    - CUDA graph decode 场景
-
 4. 后续再考虑 INT4/AWQ
 
    第一版已经打通 INT8 weight-only 的模型格式、加载路径、线性层抽象和基本验证。下一阶段可以在同一抽象层上扩展 INT4/AWQ，但不建议同时引入 KV cache quantization 或 activation quantization，以免扩大改动面。
@@ -1330,22 +1321,17 @@ return F.linear(x, weight, bias)
 
 建议按以下顺序落地，避免一次性把风险叠满：
 
-1. 先做单卡 eager 的 CUDA fused kernel  
+1. 先做单卡 eager 的 CUDA fused kernel
    在最小场景下验证 kernel 功能、数值一致性和基础吞吐收益。
-
-2. 再接到统一量化分派路径  
+2. 再接到统一量化分派路径
    让 `Int8WeightOnlyQuantMethod.apply(...)` 默认优先走 CUDA fused kernel，并保留回退。
-
-3. 再验证所有已支持线性层  
+3. 再验证所有已支持线性层
    包括 `ReplicatedLinear`、`ColumnParallelLinear`、`MergedColumnParallelLinear`、`QKVParallelLinear`、`RowParallelLinear`。
-
-4. 再验证 Tensor Parallel  
+4. 再验证 Tensor Parallel
    先确认 shard 内 fused 计算正确，再检查 `all_reduce`、packed weight 和多卡加载路径是否仍然稳定。
-
-5. 再评估 CUDA graph 路径是否需要专门适配  
+5. 再评估 CUDA graph 路径是否需要专门适配
    如果 eager 已稳定、TP 已稳定，再看该 kernel 在 graph capture 场景下是否有额外限制。
-
-6. 最后才讨论更激进的后续路线  
+6. 最后才讨论更激进的后续路线
    包括专用 INT8 GEMM、INT4/AWQ 扩展、运行时 scale 缓存优化等。
 
 #### 建议的内部接口
@@ -1424,48 +1410,89 @@ def apply_int8_weight_only_linear(
 
 如果后续多次运行结果稳定，再把吞吐提升幅度和质量阈值固化为更严格的 benchmark / CI 门禁。
 
-### 当前 CUDA 融合实现总结
+### 当前 CUDA / CUTLASS 后端实现总结
 
-当前仓库已经按上面的路线接入了第一版 `CUDA fused dequant + GEMM`，目标是先把执行路径打通，让 INT8 weight-only 在线性层前向时不再总是显式构造完整 `dequant_weight`。
+当前仓库的 INT8 weight-only 线性层已经整理成“统一入口 + 可切换后端”的结构。目标不再是把所有策略混在一条路径里，而是明确区分：
+
+- 默认后端：当前自定义 CUDA kernel（`native`）
+- 可选后端：CUTLASS backend（`cutlass`）
+- 保底后端：Python `dequantize + F.linear`（`fallback`）
 
 本次代码修改集中在以下几个位置：
 
-1. CUDA fused helper
+1. 统一量化 helper
 
-   新增 [nanovllm/quantization/cuda.py](/E:/llmegine/nano-vllm-main/nano-vllm-main/nanovllm/quantization/cuda.py)，职责包括：
+   [nanovllm/quantization/cuda.py](/E:/llmegine/nano-vllm-main/nano-vllm-main/nanovllm/quantization/cuda.py) 现在负责：
 
-   - 判断当前输入是否满足 fused CUDA kernel 的使用条件
-   - 通过 `torch.utils.cpp_extension.load(...)` 在首次使用时动态编译并加载 CUDA extension
+   - 通过 `NANOVLLM_INT8_BACKEND` 选择 `native | cutlass | fallback | auto`
+   - 在首次使用时按需 JIT 编译相应 extension
    - 提供统一入口 `apply_int8_weight_only_linear(...)`
-   - 若 CUDA extension 不可用，或 shape / dtype / device 不满足要求，则自动回退到原有 `dequantize + F.linear` 路径
+   - 在后端不可用时记录一次性日志并回退到 Python 路径
 
-2. CUDA extension 入口与 kernel
+   当前默认行为是：
 
-   新增：
+   - 不设置环境变量时，默认走 `native`
+   - `auto` 会先尝试 `cutlass`，再回退到 `native`
+   - `fallback` 会直接走 Python 反量化路径
+
+2. Native CUDA backend
+
+   当前自定义 CUDA backend 由：
 
    - [nanovllm/quantization/csrc/int8_weight_only_gemm.cpp](/E:/llmegine/nano-vllm-main/nano-vllm-main/nanovllm/quantization/csrc/int8_weight_only_gemm.cpp)
    - [nanovllm/quantization/csrc/int8_weight_only_gemm.cu](/E:/llmegine/nano-vllm-main/nano-vllm-main/nanovllm/quantization/csrc/int8_weight_only_gemm.cu)
 
-   首版 CUDA kernel 的行为是：
+   组成。
 
-   - 输入 `x` 仍使用 `fp16/bf16`
-   - 权重 `qweight` 仍保持 `int8`
-   - `scales` 仍保持 `float32`
-   - 在 kernel 内按输出元素执行 `int8 -> float -> * scale -> accumulate`
-   - 不再在 Python 路径中生成完整浮点权重矩阵
+   当前 native backend 的特点是：
 
-   这版实现优先保证路径正确和接口稳定，还不是最终的高性能 tiled GEMM 版本。后续如果继续优化，重点会落在 shared memory、vectorized load、tile 设计和访存模式上。
+   - 输入 `x` 支持 `fp16/bf16`
+   - 权重 `qweight` 保持 `int8`
+   - `scales` 保持 `float32`
+   - 对符合条件的输入会尝试走 `wmma_fp16` 或 `wmma_bf16`
+   - 不满足条件时退到文件内的 `fallback_cuda`
 
-3. INT8 量化执行路径切换
+3. CUTLASS backend
 
-   [nanovllm/quantization/int8.py](/E:/llmegine/nano-vllm-main/nano-vllm-main/nanovllm/quantization/int8.py) 已经改为统一走 `apply_int8_weight_only_linear(...)`，也就是：
+   当前新增了独立的 CUTLASS backend：
 
-   - 能走 CUDA fused kernel 时优先走 fused 路径
-   - 不能走时自动回退到朴素路径
+   - [nanovllm/quantization/csrc/int8_weight_only_gemm_cutlass.cpp](/E:/llmegine/nano-vllm-main/nano-vllm-main/nanovllm/quantization/csrc/int8_weight_only_gemm_cutlass.cpp)
+   - [nanovllm/quantization/csrc/int8_weight_only_gemm_cutlass.cu](/E:/llmegine/nano-vllm-main/nano-vllm-main/nanovllm/quantization/csrc/int8_weight_only_gemm_cutlass.cu)
 
-4. 线性层接入
+   当前这版 CUTLASS backend 的定位是“先把后端接通并可 benchmark”，而不是最终形态的最优 fused kernel。它会：
 
-   [nanovllm/layers/linear.py](/E:/llmegine/nano-vllm-main/nano-vllm-main/nanovllm/layers/linear.py) 中原本特判的 `RowParallelLinear` INT8 路径，也已经切到同一个 helper，避免一部分层走 fused、一部分层仍停留在手写反量化逻辑。
+   - 使用服务器上已安装的 CUTLASS 头文件编译 extension
+   - 通过环境变量或固定 include path 查找 `cutlass/cutlass.h`
+   - 先将 `qweight + scales` 变换成高精权重矩阵
+   - 再调用 CUTLASS GEMM
+
+   这意味着：
+
+   - 它已经是独立的 `cutlass` backend
+   - 但它还不是最终版的“最优 fused dequant + GEMM”实现
+   - 当前主要用途是与 `native` 做真实 A/B benchmark
+
+4. 日志与路径观测
+
+   打开：
+
+   ```bash
+   NANOVLLM_INT8_LOG_PATH=1
+   ```
+
+   后，运行时会打印一次性日志，帮助确认实际命中的后端与路径，例如：
+
+   - `backend=native path=wmma_bf16`
+   - `backend=cutlass path=cutlass_bf16_gemm`
+   - `backend=fallback path=python_fallback`
+
+5. 线性层接入
+
+   [nanovllm/quantization/int8.py](/E:/llmegine/nano-vllm-main/nano-vllm-main/nanovllm/quantization/int8.py) 与 [nanovllm/layers/linear.py](/E:/llmegine/nano-vllm-main/nano-vllm-main/nanovllm/layers/linear.py) 仍然统一复用 `apply_int8_weight_only_linear(...)`，因此：
+
+   - 量化模型格式不变
+   - 模型定义不需要感知 `native` / `cutlass` 差异
+   - 所有 INT8 线性层都可以通过环境变量切换 backend
 
 #### 如何运行
 
@@ -1513,14 +1540,26 @@ print(outputs[0]["text"])
 
 3. 跑吞吐 benchmark
 
+默认比较 bf16 baseline 与 `native` backend：
+
 ```bash
-python bench_quant.py --mode both --enforce-eager
+NANOVLLM_INT8_LOG_PATH=1 python bench_quant.py --mode both --enforce-eager --int8-backend native
 ```
 
-如果只想看 INT8：
+如果想同时比较 CUTLASS：
 
 ```bash
-python bench_quant.py --mode int8 --enforce-eager
+NANOVLLM_INT8_LOG_PATH=1 \
+NANOVLLM_CUTLASS_INCLUDE=/path/to/cutlass/include \
+python bench_quant.py --mode both --enforce-eager --int8-backend native --compare-cutlass
+```
+
+如果只跑 INT8 + CUTLASS：
+
+```bash
+NANOVLLM_INT8_LOG_PATH=1 \
+NANOVLLM_CUTLASS_INCLUDE=/path/to/cutlass/include \
+python bench_quant.py --mode int8 --enforce-eager --int8-backend cutlass
 ```
 
 4. 跑质量回归
@@ -1545,8 +1584,16 @@ python bench_quant_quality.py \
 
 #### 运行时注意事项
 
-- 首次走 fused CUDA 路径时，会触发 `torch.utils.cpp_extension.load(...)` 动态编译，因此第一次运行通常会比后续慢。
-- 需要本地 Python 环境中可正常导入 `torch`，并且具备可用的 CUDA / NVCC 编译环境，否则会自动回退到 `dequantize + F.linear`。
-- 当前 fused kernel 只在 CUDA、`fp16/bf16` 激活、`int8` 权重、`float32` scales 的组合下尝试启用。
-- 当前版本的回退策略是静默回退；如果你想观察是否真的命中了 fused kernel，后续可以再补调试日志或显式开关。
-- 这版 kernel 的重点是先完成“反量化融合到 GEMM”的执行路径，吞吐可能会优于当前朴素实现，但还不应把它视为最终性能版。
+- 首次走 `native` 或 `cutlass` 路径时，都会触发 `torch.utils.cpp_extension.load(...)` 动态编译，因此第一次运行通常会比后续慢。
+- `native` backend 不依赖额外头文件；`cutlass` backend 需要能找到 CUTLASS 头文件。
+- CUTLASS include path 的查找顺序优先使用：
+
+  - `NANOVLLM_CUTLASS_INCLUDE`
+  - `CUTLASS_INCLUDE_DIR`
+  - `CUTLASS_PATH`
+
+  如果这些都没设置，还会尝试若干固定路径，例如 `/usr/local/include`、`/usr/local/cutlass/include`、`/opt/cutlass/include`。
+
+- 当前 `native` backend 支持 CUDA、`fp16/bf16` 激活、`int8` 权重、`float32` scales。
+- 当前 `cutlass` backend 已可作为独立 backend 参与 benchmark，但实现上仍是“先转高精，再调用 CUTLASS GEMM”的过渡版，不应把它误认为最终的最优 fused kernel。
+- 当前日志不是静默回退；打开 `NANOVLLM_INT8_LOG_PATH=1` 后，可以直接看到实际命中的 backend 与 path。

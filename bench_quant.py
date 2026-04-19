@@ -1,7 +1,6 @@
 import argparse
 import gc
 import os
-import time
 from random import randint, seed
 
 import torch
@@ -25,6 +24,22 @@ def parse_args():
     parser.add_argument("--tensor-parallel-size", type=int, default=1)
     parser.add_argument("--enforce-eager", action="store_true")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--int8-backend",
+        choices=["native", "cutlass", "fallback", "auto"],
+        default="native",
+        help="INT8 backend for the primary INT8 benchmark run.",
+    )
+    parser.add_argument(
+        "--compare-cutlass",
+        action="store_true",
+        help="Also benchmark the CUTLASS backend when the primary INT8 backend is not cutlass.",
+    )
+    parser.add_argument(
+        "--compare-native",
+        action="store_true",
+        help="Also benchmark the native backend when the primary INT8 backend is not native.",
+    )
     return parser.parse_args()
 
 
@@ -44,6 +59,25 @@ def print_memory(label: str, snapshot: dict):
     )
 
 
+def print_run_memory(label: str):
+    if not torch.cuda.is_available():
+        return
+    torch.cuda.synchronize()
+    allocated = bytes_to_gib(torch.cuda.memory_allocated())
+    reserved = bytes_to_gib(torch.cuda.memory_reserved())
+    peak_allocated = bytes_to_gib(torch.cuda.max_memory_allocated())
+    print(
+        f"{label} runtime memory: "
+        f"allocated={allocated:.2f}GiB, "
+        f"reserved={reserved:.2f}GiB, "
+        f"peak_allocated={peak_allocated:.2f}GiB"
+    )
+
+
+def format_ttft(value: float | None) -> str:
+    return f"{value:.2f}s" if value is not None else "n/a"
+
+
 def make_workload(args):
     seed(args.seed)
     prompt_token_ids = [
@@ -57,35 +91,93 @@ def make_workload(args):
     return prompt_token_ids, sampling_params
 
 
-def run_one(label: str, args, prompt_token_ids, sampling_params):
+def set_int8_env(backend: str) -> dict[str, str | None]:
+    previous = {
+        "NANOVLLM_INT8_BACKEND": os.environ.get("NANOVLLM_INT8_BACKEND"),
+    }
+    os.environ["NANOVLLM_INT8_BACKEND"] = backend
+    return previous
+
+
+def restore_env(previous: dict[str, str | None]) -> None:
+    for key, value in previous.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
+
+
+def run_one(label: str, args, prompt_token_ids, sampling_params, backend: str | None = None):
     kwargs = dict(
         enforce_eager=args.enforce_eager,
         max_model_len=args.max_model_len,
         tensor_parallel_size=args.tensor_parallel_size,
     )
+    env_snapshot = None
+    llm = None
     if label == "int8":
         kwargs.update(
             quantization="int8",
             quantized_model_path=os.path.expanduser(args.int8_model),
         )
+        backend = backend or args.int8_backend
+        env_snapshot = set_int8_env(backend)
 
-    llm = LLM(os.path.expanduser(args.model), **kwargs)
-    print_memory(label, llm.model_runner.memory_snapshots["after_model_load"])
+    try:
+        llm = LLM(os.path.expanduser(args.model), **kwargs)
+        run_label = label if label != "int8" else f"{label}[backend={backend}]"
+        if label == "int8":
+            print(f"{run_label} config")
+        print_memory(run_label, llm.model_runner.memory_snapshots["after_model_load"])
 
-    llm.generate(["Benchmark: "], SamplingParams(), use_tqdm=False)
-    start = time.time()
-    llm.generate(prompt_token_ids, sampling_params, use_tqdm=False)
-    elapsed = time.time() - start
-    total_tokens = sum(sp.max_tokens for sp in sampling_params)
-    throughput = total_tokens / elapsed
-    print(f"{label} total: {total_tokens}tok, time={elapsed:.2f}s, throughput={throughput:.2f}tok/s")
+        llm.generate(["Benchmark: "], SamplingParams(), use_tqdm=False)
+        torch.cuda.reset_peak_memory_stats()
+        outputs, stats = llm.generate_with_stats(prompt_token_ids, sampling_params, use_tqdm=False)
+        total_tokens = sum(len(output["token_ids"]) for output in outputs)
+        throughput = total_tokens / stats["wall_time_seconds"] if stats["wall_time_seconds"] > 0 else 0.0
+        print(
+            f"{run_label} total: {total_tokens}tok, "
+            f"time={stats['wall_time_seconds']:.2f}s, "
+            f"throughput={throughput:.2f}tok/s"
+        )
+        print(
+            f"{run_label} split: "
+            f"prefill={stats['prefill_tokens_per_second']:.2f}tok/s "
+            f"(tokens={stats['prefill_tokens']}, time={stats['prefill_time_seconds']:.2f}s, steps={stats['prefill_steps']}), "
+            f"decode={stats['decode_tokens_per_second']:.2f}tok/s "
+            f"(tokens={stats['decode_tokens']}, time={stats['decode_time_seconds']:.2f}s, steps={stats['decode_steps']}), "
+            f"ttft~={format_ttft(stats['ttft_seconds_approx'])}"
+        )
+        print_run_memory(run_label)
 
-    llm.exit()
-    del llm
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    return throughput
+        return {
+            "throughput": throughput,
+            "prefill_tps": stats["prefill_tokens_per_second"],
+            "decode_tps": stats["decode_tokens_per_second"],
+            "backend": backend,
+            "run_label": run_label,
+        }
+    finally:
+        if llm is not None:
+            llm.exit()
+            del llm
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        if env_snapshot is not None:
+            restore_env(env_snapshot)
+
+
+def print_ratio(name: str, numerator: dict, denominator: dict):
+    total_ratio = numerator["throughput"] / denominator["throughput"] if denominator["throughput"] > 0 else 0.0
+    prefill_ratio = numerator["prefill_tps"] / denominator["prefill_tps"] if denominator["prefill_tps"] > 0 else 0.0
+    decode_ratio = numerator["decode_tps"] / denominator["decode_tps"] if denominator["decode_tps"] > 0 else 0.0
+    print(
+        f"{name}: "
+        f"total={total_ratio:.3f}x "
+        f"prefill={prefill_ratio:.3f}x "
+        f"decode={decode_ratio:.3f}x"
+    )
 
 
 def main():
@@ -97,10 +189,17 @@ def main():
         results["bf16"] = run_one("bf16", args, prompt_token_ids, sampling_params)
     if args.mode in ("int8", "both"):
         results["int8"] = run_one("int8", args, prompt_token_ids, sampling_params)
+        if args.compare_cutlass and args.int8_backend != "cutlass":
+            results["int8_cutlass"] = run_one("int8", args, prompt_token_ids, sampling_params, backend="cutlass")
+        if args.compare_native and args.int8_backend != "native":
+            results["int8_native"] = run_one("int8", args, prompt_token_ids, sampling_params, backend="native")
 
     if "bf16" in results and "int8" in results:
-        ratio = results["int8"] / results["bf16"] if results["bf16"] > 0 else 0.0
-        print(f"int8/bf16 throughput ratio: {ratio:.3f}x")
+        print_ratio("int8/bf16 ratios", results["int8"], results["bf16"])
+    if "bf16" in results and "int8_cutlass" in results:
+        print_ratio("int8_cutlass/bf16 ratios", results["int8_cutlass"], results["bf16"])
+    if "bf16" in results and "int8_native" in results:
+        print_ratio("int8_native/bf16 ratios", results["int8_native"], results["bf16"])
 
 
 if __name__ == "__main__":

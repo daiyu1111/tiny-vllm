@@ -4,6 +4,7 @@
 #include <cuda_bf16.h>
 #include <cuda_fp16.h>
 #include <mma.h>
+#include <string>
 #include <torch/extension.h>
 
 namespace {
@@ -39,9 +40,24 @@ constexpr int WMMA_BQ_STRIDE = WMMA_BLOCK_K + WMMA_BQ_SKEW;
 constexpr int WMMA_B_STRIDE = WMMA_BLOCK_N + WMMA_B_SKEW;
 constexpr int WMMA_C_STRIDE = WMMA_BLOCK_N + WMMA_C_SKEW;
 constexpr int CP_ASYNC_BYTES = 16;
-constexpr int CP_ASYNC_A_HALFS = CP_ASYNC_BYTES / static_cast<int>(sizeof(half));
 
 static_assert(WMMA_THREADS_PER_BLOCK == 256, "Expected 256 threads per WMMA block");
+
+template <typename scalar_t>
+struct wmma_scalar_type;
+
+template <>
+struct wmma_scalar_type<at::Half> {
+  using type = half;
+};
+
+template <>
+struct wmma_scalar_type<at::BFloat16> {
+  using type = __nv_bfloat16;
+};
+
+template <typename scalar_t>
+using wmma_scalar_t = typename wmma_scalar_type<scalar_t>::type;
 
 template <typename scalar_t>
 __device__ __forceinline__ scalar_t cast_from_float(float value);
@@ -54,6 +70,60 @@ __device__ __forceinline__ at::Half cast_from_float<at::Half>(float value) {
 template <>
 __device__ __forceinline__ at::BFloat16 cast_from_float<at::BFloat16>(float value) {
   return static_cast<at::BFloat16>(value);
+}
+
+template <typename scalar_t>
+__device__ __forceinline__ wmma_scalar_t<scalar_t> wmma_zero();
+
+template <>
+__device__ __forceinline__ half wmma_zero<at::Half>() {
+  return __float2half(0.0f);
+}
+
+template <>
+__device__ __forceinline__ __nv_bfloat16 wmma_zero<at::BFloat16>() {
+  return __float2bfloat16(0.0f);
+}
+
+template <typename scalar_t>
+__device__ __forceinline__ wmma_scalar_t<scalar_t> wmma_from_float(float value);
+
+template <>
+__device__ __forceinline__ half wmma_from_float<at::Half>(float value) {
+  return __float2half(value);
+}
+
+template <>
+__device__ __forceinline__ __nv_bfloat16 wmma_from_float<at::BFloat16>(float value) {
+  return __float2bfloat16(value);
+}
+
+template <typename scalar_t>
+__device__ __forceinline__ wmma_scalar_t<scalar_t> wmma_from_int(int value);
+
+template <>
+__device__ __forceinline__ half wmma_from_int<at::Half>(int value) {
+  return __int2half_rn(value);
+}
+
+template <>
+__device__ __forceinline__ __nv_bfloat16 wmma_from_int<at::BFloat16>(int value) {
+  return __float2bfloat16(static_cast<float>(value));
+}
+
+template <typename scalar_t>
+__device__ __forceinline__ wmma_scalar_t<scalar_t> wmma_mul(
+    wmma_scalar_t<scalar_t> a,
+    wmma_scalar_t<scalar_t> b);
+
+template <>
+__device__ __forceinline__ half wmma_mul<at::Half>(half a, half b) {
+  return __hmul(a, b);
+}
+
+template <>
+__device__ __forceinline__ __nv_bfloat16 wmma_mul<at::BFloat16>(__nv_bfloat16 a, __nv_bfloat16 b) {
+  return __hmul(a, b);
 }
 
 template <typename scalar_t>
@@ -226,13 +296,14 @@ __global__ void int8_weight_only_gemm_fallback_kernel(
   }
 }
 
+template <typename scalar_t>
 __device__ __forceinline__ void load_wmma_stage_async(
-    const at::Half* __restrict__ x,
+    const scalar_t* __restrict__ x,
     const int8_t* __restrict__ qweight,
     const float* __restrict__ scales,
-    half* __restrict__ a_stage,
+    wmma_scalar_t<scalar_t>* __restrict__ a_stage,
     int8_t* __restrict__ bq_stage,
-    half* __restrict__ b_stage,
+    wmma_scalar_t<scalar_t>* __restrict__ b_stage,
     int block_row,
     int block_col,
     int k0,
@@ -241,26 +312,28 @@ __device__ __forceinline__ void load_wmma_stage_async(
     int k,
     int tid,
     int threads_per_block) {
-  const half* x_half = reinterpret_cast<const half*>(x);
+  using wmma_t = wmma_scalar_t<scalar_t>;
+  constexpr int cp_async_a_elems = CP_ASYNC_BYTES / static_cast<int>(sizeof(wmma_t));
+  const wmma_t* x_wmma = reinterpret_cast<const wmma_t*>(x);
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
-  const int a_segments_per_row = WMMA_BLOCK_K / CP_ASYNC_A_HALFS;
+  const int a_segments_per_row = WMMA_BLOCK_K / cp_async_a_elems;
   const int a_segments = WMMA_BLOCK_M * a_segments_per_row;
   for (int idx = tid; idx < a_segments; idx += threads_per_block) {
     const int tile_row = idx / a_segments_per_row;
     const int seg = idx % a_segments_per_row;
-    const int tile_k = seg * CP_ASYNC_A_HALFS;
+    const int tile_k = seg * cp_async_a_elems;
     const int global_row = block_row + tile_row;
     const int global_k = k0 + tile_k;
-    half* smem_ptr = a_stage + tile_row * WMMA_A_STRIDE + tile_k;
-    const half* gmem_ptr = x_half + global_row * k + global_k;
-    if (global_row < m && global_k + CP_ASYNC_A_HALFS - 1 < k) {
+    wmma_t* smem_ptr = a_stage + tile_row * WMMA_A_STRIDE + tile_k;
+    const wmma_t* gmem_ptr = x_wmma + global_row * k + global_k;
+    if (global_row < m && global_k + cp_async_a_elems - 1 < k) {
       cp_async_16(smem_ptr, gmem_ptr);
     } else {
 #pragma unroll
-      for (int t = 0; t < CP_ASYNC_A_HALFS; ++t) {
-        half value = __float2half(0.0f);
+      for (int t = 0; t < cp_async_a_elems; ++t) {
+        wmma_t value = wmma_zero<scalar_t>();
         if (global_row < m && global_k + t < k) {
-          value = x_half[global_row * k + global_k + t];
+          value = x_wmma[global_row * k + global_k + t];
         }
         smem_ptr[t] = value;
       }
@@ -301,9 +374,9 @@ __device__ __forceinline__ void load_wmma_stage_async(
     const int global_row = block_row + tile_row;
     const int global_k = k0 + tile_k;
     if (global_row < m && global_k < k) {
-      a_stage[tile_row * WMMA_A_STRIDE + tile_k] = x_half[global_row * k + global_k];
+      a_stage[tile_row * WMMA_A_STRIDE + tile_k] = x_wmma[global_row * k + global_k];
     } else {
-      a_stage[tile_row * WMMA_A_STRIDE + tile_k] = __float2half(0.0f);
+      a_stage[tile_row * WMMA_A_STRIDE + tile_k] = wmma_zero<scalar_t>();
     }
   }
   const int b_int8_elems = WMMA_BLOCK_N * WMMA_BLOCK_K;
@@ -326,31 +399,34 @@ __device__ __forceinline__ void load_wmma_stage_async(
     const int tile_col = idx / (WMMA_BLOCK_K / 16);
     const int tile_k_vec = (idx % (WMMA_BLOCK_K / 16)) * 16;
     const int global_col = block_col + tile_col;
-    half scale_h = __float2half(0.0f);
+    wmma_t scale_h = wmma_zero<scalar_t>();
     if (global_col < n) {
-      scale_h = __float2half(scales[global_col]);
+      scale_h = wmma_from_float<scalar_t>(scales[global_col]);
     }
     const int8_t* vals = bq_stage + tile_col * WMMA_BQ_STRIDE + tile_k_vec;
 #pragma unroll
     for (int t = 0; t < 16; ++t) {
-      b_stage[(tile_k_vec + t) * WMMA_B_STRIDE + tile_col] = __hmul(__int2half_rn(static_cast<int>(vals[t])), scale_h);
+      b_stage[(tile_k_vec + t) * WMMA_B_STRIDE + tile_col] =
+          wmma_mul<scalar_t>(wmma_from_int<scalar_t>(static_cast<int>(vals[t])), scale_h);
     }
   }
   __syncthreads();
 }
 
+template <typename scalar_t>
 __global__ void int8_weight_only_gemm_wmma_kernel(
-    const at::Half* __restrict__ x,
+    const scalar_t* __restrict__ x,
     const int8_t* __restrict__ qweight,
     const float* __restrict__ scales,
-    const at::Half* __restrict__ bias,
-    at::Half* __restrict__ y,
+    const scalar_t* __restrict__ bias,
+    scalar_t* __restrict__ y,
     int m,
     int n,
     int k) {
-  __shared__ half a_tiles[2][WMMA_BLOCK_M * WMMA_A_STRIDE];
+  using wmma_t = wmma_scalar_t<scalar_t>;
+  __shared__ wmma_t a_tiles[2][WMMA_BLOCK_M * WMMA_A_STRIDE];
   __shared__ int8_t bq_tiles[2][WMMA_BLOCK_N * WMMA_BQ_STRIDE];
-  __shared__ half b_tiles[2][WMMA_BLOCK_K * WMMA_B_STRIDE];
+  __shared__ wmma_t b_tiles[2][WMMA_BLOCK_K * WMMA_B_STRIDE];
   __shared__ float bias_tile[WMMA_BLOCK_N];
   __shared__ float c_tile[WMMA_BLOCK_M * WMMA_C_STRIDE];
 
@@ -362,10 +438,10 @@ __global__ void int8_weight_only_gemm_wmma_kernel(
 
   if (tid < WMMA_BLOCK_N) {
     const int global_col = block_col + tid;
-    bias_tile[tid] = (bias != nullptr && global_col < n) ? load_bias<at::Half>(bias, global_col) : 0.0f;
+    bias_tile[tid] = (bias != nullptr && global_col < n) ? load_bias<scalar_t>(bias, global_col) : 0.0f;
   }
 
-  load_wmma_stage_async(
+  load_wmma_stage_async<scalar_t>(
       x,
       qweight,
       scales,
@@ -392,7 +468,7 @@ __global__ void int8_weight_only_gemm_wmma_kernel(
     const int next_k0 = k0 + WMMA_BLOCK_K;
     const int next_stage = stage ^ 1;
     if (next_k0 < k) {
-      load_wmma_stage_async(
+      load_wmma_stage_async<scalar_t>(
           x,
           qweight,
           scales,
@@ -409,12 +485,12 @@ __global__ void int8_weight_only_gemm_wmma_kernel(
           WMMA_THREADS_PER_BLOCK);
     }
 
-    half* a_stage = a_tiles[stage];
-    half* b_stage = b_tiles[stage];
+    wmma_t* a_stage = a_tiles[stage];
+    wmma_t* b_stage = b_tiles[stage];
 #pragma unroll
     for (int kk = 0; kk < WMMA_BLOCK_K; kk += WMMA_K) {
-      wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> a_frag;
-      wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> b_frag;
+      wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, wmma_t, wmma::row_major> a_frag;
+      wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, wmma_t, wmma::row_major> b_frag;
       wmma::load_matrix_sync(a_frag, a_stage + warp_row * WMMA_M * WMMA_A_STRIDE + kk, WMMA_A_STRIDE);
       wmma::load_matrix_sync(b_frag, b_stage + kk * WMMA_B_STRIDE + warp_col * WMMA_N, WMMA_B_STRIDE);
       wmma::mma_sync(c_frag, a_frag, b_frag, c_frag);
@@ -435,13 +511,13 @@ __global__ void int8_weight_only_gemm_wmma_kernel(
     const int global_col = block_col + tile_col;
     if (global_row < m && global_col < n) {
       const float value = c_tile[tile_row * WMMA_C_STRIDE + tile_col] + bias_tile[tile_col];
-      y[global_row * n + global_col] = cast_from_float<at::Half>(value);
+      y[global_row * n + global_col] = cast_from_float<scalar_t>(value);
     }
   }
 }
 
 bool can_use_wmma(torch::Tensor x, torch::Tensor qweight) {
-  if (x.scalar_type() != at::kHalf) {
+  if (x.scalar_type() != at::kHalf && x.scalar_type() != at::kBFloat16) {
     return false;
   }
   if (x.size(1) < WMMA_K) {
@@ -457,7 +533,18 @@ bool can_use_wmma(torch::Tensor x, torch::Tensor qweight) {
   return device_prop->major >= 8;
 }
 
+std::string select_int8_weight_only_gemm_path(torch::Tensor x, torch::Tensor qweight) {
+  if (can_use_wmma(x, qweight)) {
+    return x.scalar_type() == at::kHalf ? "wmma_fp16" : "wmma_bf16";
+  }
+  return "fallback_cuda";
+}
+
 }  // namespace
+
+std::string int8_weight_only_gemm_path_cuda(torch::Tensor x, torch::Tensor qweight) {
+  return select_int8_weight_only_gemm_path(x, qweight);
+}
 
 torch::Tensor int8_weight_only_gemm_cuda(
     torch::Tensor x,
@@ -473,20 +560,35 @@ torch::Tensor int8_weight_only_gemm_cuda(
   if (can_use_wmma(x, qweight)) {
     dim3 block(WMMA_THREADS_PER_BLOCK);
     dim3 grid((n + WMMA_BLOCK_N - 1) / WMMA_BLOCK_N, (m + WMMA_BLOCK_M - 1) / WMMA_BLOCK_M);
-    const auto* x_ptr = x.data_ptr<at::Half>();
     const auto* qweight_ptr = qweight.data_ptr<int8_t>();
     const auto* scales_ptr = scales.data_ptr<float>();
-    const auto* bias_ptr = bias.has_value() ? bias->data_ptr<at::Half>() : nullptr;
-    auto* y_ptr = y.data_ptr<at::Half>();
-    int8_weight_only_gemm_wmma_kernel<<<grid, block, 0, stream>>>(
-        x_ptr,
-        qweight_ptr,
-        scales_ptr,
-        bias_ptr,
-        y_ptr,
-        m,
-        n,
-        k);
+    if (x.scalar_type() == at::kHalf) {
+      const auto* x_ptr = x.data_ptr<at::Half>();
+      const auto* bias_ptr = bias.has_value() ? bias->data_ptr<at::Half>() : nullptr;
+      auto* y_ptr = y.data_ptr<at::Half>();
+      int8_weight_only_gemm_wmma_kernel<at::Half><<<grid, block, 0, stream>>>(
+          x_ptr,
+          qweight_ptr,
+          scales_ptr,
+          bias_ptr,
+          y_ptr,
+          m,
+          n,
+          k);
+    } else {
+      const auto* x_ptr = x.data_ptr<at::BFloat16>();
+      const auto* bias_ptr = bias.has_value() ? bias->data_ptr<at::BFloat16>() : nullptr;
+      auto* y_ptr = y.data_ptr<at::BFloat16>();
+      int8_weight_only_gemm_wmma_kernel<at::BFloat16><<<grid, block, 0, stream>>>(
+          x_ptr,
+          qweight_ptr,
+          scales_ptr,
+          bias_ptr,
+          y_ptr,
+          m,
+          n,
+          k);
+    }
     C10_CUDA_KERNEL_LAUNCH_CHECK();
     return y;
   }

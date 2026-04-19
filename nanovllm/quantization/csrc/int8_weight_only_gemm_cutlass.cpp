@@ -1,17 +1,17 @@
 #include <torch/extension.h>
 #include <string>
 
-torch::Tensor int8_weight_only_gemm_cuda(
+torch::Tensor int8_weight_only_gemm_cutlass_cuda(
     torch::Tensor x,
     torch::Tensor qweight,
     torch::Tensor scales,
     c10::optional<torch::Tensor> bias);
 
-std::string int8_weight_only_gemm_path_cuda(
+std::string int8_weight_only_gemm_cutlass_path_cuda(
     torch::Tensor x,
     torch::Tensor qweight);
 
-torch::Tensor int8_weight_only_gemm(
+torch::Tensor int8_weight_only_gemm_cutlass(
     torch::Tensor x,
     torch::Tensor qweight,
     torch::Tensor scales,
@@ -33,11 +33,14 @@ torch::Tensor int8_weight_only_gemm(
     TORCH_CHECK(bias->is_cuda(), "bias must be a CUDA tensor");
     TORCH_CHECK(bias->dim() == 1, "bias must be 1D");
     TORCH_CHECK(bias->size(0) == qweight.size(0), "bias must match qweight rows");
+    TORCH_CHECK(
+        bias->scalar_type() == x.scalar_type(),
+        "bias must match x dtype for CUTLASS backend");
   }
-  return int8_weight_only_gemm_cuda(x, qweight, scales, bias);
+  return int8_weight_only_gemm_cutlass_cuda(x, qweight, scales, bias);
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-  m.def("forward", &int8_weight_only_gemm, "INT8 weight-only fused dequant GEMM (CUDA)");
-  m.def("select_path", &int8_weight_only_gemm_path_cuda, "Return the fused kernel path for the given tensors");
+  m.def("forward", &int8_weight_only_gemm_cutlass, "INT8 weight-only GEMM via CUTLASS");
+  m.def("select_path", &int8_weight_only_gemm_cutlass_path_cuda, "Return the CUTLASS backend path");
 }
