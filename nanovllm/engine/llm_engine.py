@@ -1,4 +1,5 @@
 import atexit
+from collections.abc import Callable
 from dataclasses import fields
 from time import perf_counter
 from tqdm.auto import tqdm
@@ -38,10 +39,14 @@ class LLMEngine:
         atexit.register(self.exit)#"at exit"（在退出时）。调用self.exit
 
     def exit(self):
+        if getattr(self, "model_runner", None) is None:
+            return
         self.model_runner.call("exit")#主进程向子进程发出退出信号，子进程会自己用自己的退出逻辑
         del self.model_runner#理主进程（包工头自己）的内存
+        self.model_runner = None
         for p in self.ps:#根据花名册，join 的意思是**“阻塞并等待，直到这个进程（线程）完全结束”**。
             p.join()
+        self.ps = []
 
     #每当有一个用户带着他的问题（prompt）来找大模型时，这个函数就会被调用
     # prompt：用户想问的问题，人类文字（str），也可以是已经被翻译好的数字代码（list[int]）。
@@ -80,13 +85,13 @@ class LLMEngine:
     def is_finished(self):
         return self.scheduler.is_finished()
 
-    def generate(
+    def _run_generation(
         self,
         prompts: list[str] | list[list[int]],
         sampling_params: SamplingParams | list[SamplingParams],
-        use_tqdm: bool = True,
-    ) -> list[str]:
-
+        use_tqdm: bool,
+        stats_hook: Callable[[dict], None] | None = None,
+    ) -> list[dict]:
         if use_tqdm:
             pbar = tqdm(total=len(prompts), desc="Generating", dynamic_ncols=True)
         if not isinstance(sampling_params, list):
@@ -95,14 +100,39 @@ class LLMEngine:
             self.add_request(prompt, sp)
         outputs = {}
         prefill_throughput = decode_throughput = 0.
+        generation_start = perf_counter()
+        prefill_tokens_total = 0
+        prefill_time_total = 0.
+        decode_tokens_total = 0
+        decode_time_total = 0.
+        prefill_steps = 0
+        decode_steps = 0
+        ttft_seconds = None
         while not self.is_finished():
             t = perf_counter()
             output, num_tokens = self.step()
+            step_time = perf_counter() - t
+            elapsed = perf_counter() - generation_start
+            if num_tokens > 0:
+                prefill_tokens_total += num_tokens
+                prefill_time_total += step_time
+                prefill_steps += 1
+                prefill_throughput = num_tokens / step_time
+            else:
+                decode_tokens_total += -num_tokens
+                decode_time_total += step_time
+                decode_steps += 1
+                decode_throughput = -num_tokens / step_time
+                if ttft_seconds is None:
+                    ttft_seconds = elapsed - step_time
+            if stats_hook is not None:
+                stats_hook({
+                    "num_tokens": int(num_tokens),
+                    "step_time_seconds": step_time,
+                    "elapsed_seconds": elapsed,
+                    "is_prefill": num_tokens > 0,
+                })
             if use_tqdm:
-                if num_tokens > 0:
-                    prefill_throughput = num_tokens / (perf_counter() - t)
-                else:
-                    decode_throughput = -num_tokens / (perf_counter() - t)
                 pbar.set_postfix({
                     "Prefill": f"{int(prefill_throughput)}tok/s",
                     "Decode": f"{int(decode_throughput)}tok/s",
@@ -115,4 +145,34 @@ class LLMEngine:
         outputs = [{"text": self.tokenizer.decode(token_ids), "token_ids": token_ids} for token_ids in outputs]
         if use_tqdm:
             pbar.close()
+        stats = {
+            "wall_time_seconds": perf_counter() - generation_start,
+            "prefill_tokens": int(prefill_tokens_total),
+            "prefill_time_seconds": prefill_time_total,
+            "prefill_steps": int(prefill_steps),
+            "prefill_tokens_per_second": prefill_tokens_total / prefill_time_total if prefill_time_total > 0 else 0.,
+            "decode_tokens": int(decode_tokens_total),
+            "decode_time_seconds": decode_time_total,
+            "decode_steps": int(decode_steps),
+            "decode_tokens_per_second": decode_tokens_total / decode_time_total if decode_time_total > 0 else 0.,
+            "ttft_seconds_approx": ttft_seconds,
+        }
+        return outputs, stats
+
+    def generate(
+        self,
+        prompts: list[str] | list[list[int]],
+        sampling_params: SamplingParams | list[SamplingParams],
+        use_tqdm: bool = True,
+    ) -> list[dict]:
+        outputs, _ = self._run_generation(prompts, sampling_params, use_tqdm)
         return outputs
+
+    def generate_with_stats(
+        self,
+        prompts: list[str] | list[list[int]],
+        sampling_params: SamplingParams | list[SamplingParams],
+        use_tqdm: bool = False,
+        stats_hook: Callable[[dict], None] | None = None,
+    ) -> tuple[list[dict], dict]:
+        return self._run_generation(prompts, sampling_params, use_tqdm, stats_hook)

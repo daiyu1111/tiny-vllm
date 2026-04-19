@@ -42,6 +42,17 @@ outputs[0]["text"]
 
 See `bench.py` for benchmark.
 
+- Hardware: NVIDIA A10 (20GB)
+- Model: Qwen3-0.6B
+- Total Requests: 256 sequences
+- Input Length: Randomly sampled between 100–1024 tokens
+- Output Length: Randomly sampled between 100–1024 tokens
+
+| Inference Engine | Output Tokens | Time (s) | Throughput (tokens/s) |
+| --------- | ------------------------------------------------- | ------- | ------- |
+| tiny-vLLM | 133966tok, 38.43s| 38.43s, |    3486.41tok/s     |
+|           |                                                   |         |        |
+
 **Test Configuration:**
 
 - Hardware: RTX 4070 Laptop (8GB)
@@ -51,7 +62,6 @@ See `bench.py` for benchmark.
 - Output Length: Randomly sampled between 100–1024 tokens
 
 **Performance Results:**
-
 
 | Inference Engine | Output Tokens | Time (s) | Throughput (tokens/s) |
 | ---------------- | ------------- | -------- | --------------------- |

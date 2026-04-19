@@ -1,0 +1,2857 @@
+{
+  "metadata": {
+    "created_at": "2026-04-15T17:45:02.262203",
+    "model": "/mnt/workspace/nano-vllm-main/Qwen3-0.6B/qwen/Qwen3-0___6B",
+    "int8_model": "/mnt/workspace/nano-vllm-main/Qwen3-0.6B/qwen/Qwen3-0___6B-int8",
+    "mode": "artifact",
+    "tensor_parallel_size": 1,
+    "max_model_len": 4096,
+    "max_num_seqs": 512,
+    "max_num_batched_tokens": 16384,
+    "gpu_memory_utilization": 0.9,
+    "ppl": {
+      "source": "hf-dataset",
+      "hf_dataset": "wikitext",
+      "hf_dataset_config": "wikitext-2-raw-v1",
+      "hf_dataset_split": "test",
+      "max_samples": 16,
+      "max_seq_len": 1024,
+      "stride": 512
+    },
+    "runtime": {
+      "cuda_available": true,
+      "cuda_version": "12.8",
+      "pytorch_version": "2.9.1+cu128",
+      "device_index": 0,
+      "gpu_name": "NVIDIA A10",
+      "gpu_total_memory": 23819976704
+    }
+  },
+  "artifact_check": {
+    "passed": true,
+    "errors": [],
+    "layers": {
+      "model.layers.0.mlp.down_proj": {
+        "qweight": "model.layers.0.mlp.down_proj.qweight",
+        "scales": "model.layers.0.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00021552247926592827,
+          "max_error": 0.0016417019069194794,
+          "relative_l2": 0.009730175137519836,
+          "cosine_similarity": 0.9999713897705078
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.0.mlp.gate_up_proj": {
+        "qweight": "model.layers.0.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.0.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00022156872728373855,
+          "max_error": 0.0015369318425655365,
+          "relative_l2": 0.00841410830616951,
+          "cosine_similarity": 1.0004006624221802
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.0.self_attn.o_proj": {
+        "qweight": "model.layers.0.self_attn.o_proj.qweight",
+        "scales": "model.layers.0.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002256610314361751,
+          "max_error": 0.0016586424317210913,
+          "relative_l2": 0.010550721548497677,
+          "cosine_similarity": 0.9999589920043945
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.0.self_attn.qkv_proj": {
+        "qweight": "model.layers.0.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.0.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00021461016149260104,
+          "max_error": 0.00252407044172287,
+          "relative_l2": 0.008822507224977016,
+          "cosine_similarity": 1.0000427961349487
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.1.mlp.down_proj": {
+        "qweight": "model.layers.1.mlp.down_proj.qweight",
+        "scales": "model.layers.1.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00019956922915298492,
+          "max_error": 0.0014744549989700317,
+          "relative_l2": 0.010327199473977089,
+          "cosine_similarity": 0.9999584555625916
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.1.mlp.gate_up_proj": {
+        "qweight": "model.layers.1.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.1.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00023381227219942957,
+          "max_error": 0.0017109066247940063,
+          "relative_l2": 0.008218998089432716,
+          "cosine_similarity": 1.000354528427124
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.1.self_attn.o_proj": {
+        "qweight": "model.layers.1.self_attn.o_proj.qweight",
+        "scales": "model.layers.1.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00021148734958842397,
+          "max_error": 0.0011303424835205078,
+          "relative_l2": 0.00926911924034357,
+          "cosine_similarity": 0.9999538064002991
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.1.self_attn.qkv_proj": {
+        "qweight": "model.layers.1.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.1.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00020548187603708357,
+          "max_error": 0.0025177001953125,
+          "relative_l2": 0.008515731431543827,
+          "cosine_similarity": 1.0000486373901367
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.10.mlp.down_proj": {
+        "qweight": "model.layers.10.mlp.down_proj.qweight",
+        "scales": "model.layers.10.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00022417544096242636,
+          "max_error": 0.0015196315944194794,
+          "relative_l2": 0.011298772878944874,
+          "cosine_similarity": 0.9999655485153198
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.10.mlp.gate_up_proj": {
+        "qweight": "model.layers.10.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.10.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00021439023839775473,
+          "max_error": 0.0020607709884643555,
+          "relative_l2": 0.008726408705115318,
+          "cosine_similarity": 1.0003114938735962
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.10.self_attn.o_proj": {
+        "qweight": "model.layers.10.self_attn.o_proj.qweight",
+        "scales": "model.layers.10.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00019852192781399935,
+          "max_error": 0.0012649176642298698,
+          "relative_l2": 0.009715576656162739,
+          "cosine_similarity": 0.999935507774353
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.10.self_attn.qkv_proj": {
+        "qweight": "model.layers.10.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.10.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00019764856551773846,
+          "max_error": 0.0013668015599250793,
+          "relative_l2": 0.008473274298012257,
+          "cosine_similarity": 1.0000587701797485
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.11.mlp.down_proj": {
+        "qweight": "model.layers.11.mlp.down_proj.qweight",
+        "scales": "model.layers.11.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00022662286937702447,
+          "max_error": 0.001591712236404419,
+          "relative_l2": 0.01061280071735382,
+          "cosine_similarity": 0.9999550580978394
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.11.mlp.gate_up_proj": {
+        "qweight": "model.layers.11.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.11.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00020587632025126368,
+          "max_error": 0.0019992589950561523,
+          "relative_l2": 0.008538151159882545,
+          "cosine_similarity": 1.0002148151397705
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.11.self_attn.o_proj": {
+        "qweight": "model.layers.11.self_attn.o_proj.qweight",
+        "scales": "model.layers.11.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002222763723693788,
+          "max_error": 0.0015508700162172318,
+          "relative_l2": 0.01185611356049776,
+          "cosine_similarity": 0.9999234676361084
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.11.self_attn.qkv_proj": {
+        "qweight": "model.layers.11.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.11.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00020355639571789652,
+          "max_error": 0.0017512757331132889,
+          "relative_l2": 0.008908094838261604,
+          "cosine_similarity": 1.0001287460327148
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.12.mlp.down_proj": {
+        "qweight": "model.layers.12.mlp.down_proj.qweight",
+        "scales": "model.layers.12.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00022036937298253179,
+          "max_error": 0.0019216462969779968,
+          "relative_l2": 0.010468981228768826,
+          "cosine_similarity": 0.9999446868896484
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.12.mlp.gate_up_proj": {
+        "qweight": "model.layers.12.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.12.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002010681200772524,
+          "max_error": 0.001253381371498108,
+          "relative_l2": 0.008542027324438095,
+          "cosine_similarity": 1.000218152999878
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.12.self_attn.o_proj": {
+        "qweight": "model.layers.12.self_attn.o_proj.qweight",
+        "scales": "model.layers.12.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00017888355068862438,
+          "max_error": 0.001129150390625,
+          "relative_l2": 0.009238559752702713,
+          "cosine_similarity": 0.9999388456344604
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.12.self_attn.qkv_proj": {
+        "qweight": "model.layers.12.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.12.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00019473745487630367,
+          "max_error": 0.0014686882495880127,
+          "relative_l2": 0.008496582508087158,
+          "cosine_similarity": 1.0000900030136108
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.13.mlp.down_proj": {
+        "qweight": "model.layers.13.mlp.down_proj.qweight",
+        "scales": "model.layers.13.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00022079568589106202,
+          "max_error": 0.00182913220487535,
+          "relative_l2": 0.01085414458066225,
+          "cosine_similarity": 0.9999405741691589
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.13.mlp.gate_up_proj": {
+        "qweight": "model.layers.13.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.13.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00019477079331409186,
+          "max_error": 0.002014636993408203,
+          "relative_l2": 0.00868149846792221,
+          "cosine_similarity": 1.0002036094665527
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.13.self_attn.o_proj": {
+        "qweight": "model.layers.13.self_attn.o_proj.qweight",
+        "scales": "model.layers.13.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0001792463444871828,
+          "max_error": 0.0009842514991760254,
+          "relative_l2": 0.009553254581987858,
+          "cosine_similarity": 0.9999399185180664
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.13.self_attn.qkv_proj": {
+        "qweight": "model.layers.13.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.13.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00018680216453503817,
+          "max_error": 0.0018178385216742754,
+          "relative_l2": 0.008489490486681461,
+          "cosine_similarity": 1.0000921487808228
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.14.mlp.down_proj": {
+        "qweight": "model.layers.14.mlp.down_proj.qweight",
+        "scales": "model.layers.14.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00022213364718481898,
+          "max_error": 0.0013672839850187302,
+          "relative_l2": 0.011126772500574589,
+          "cosine_similarity": 0.9999479651451111
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.14.mlp.gate_up_proj": {
+        "qweight": "model.layers.14.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.14.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00018974661361426115,
+          "max_error": 0.001708984375,
+          "relative_l2": 0.00885237567126751,
+          "cosine_similarity": 1.000157117843628
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.14.self_attn.o_proj": {
+        "qweight": "model.layers.14.self_attn.o_proj.qweight",
+        "scales": "model.layers.14.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00017054534691851586,
+          "max_error": 0.0010995864868164062,
+          "relative_l2": 0.009251861833035946,
+          "cosine_similarity": 0.9999275207519531
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.14.self_attn.qkv_proj": {
+        "qweight": "model.layers.14.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.14.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00018780762911774218,
+          "max_error": 0.0013668015599250793,
+          "relative_l2": 0.00876603927463293,
+          "cosine_similarity": 1.0001100301742554
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.15.mlp.down_proj": {
+        "qweight": "model.layers.15.mlp.down_proj.qweight",
+        "scales": "model.layers.15.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00021601970365736634,
+          "max_error": 0.0015508700162172318,
+          "relative_l2": 0.010891292244195938,
+          "cosine_similarity": 0.9999585747718811
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.15.mlp.gate_up_proj": {
+        "qweight": "model.layers.15.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.15.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0001936000189743936,
+          "max_error": 0.0020904541015625,
+          "relative_l2": 0.009013024158775806,
+          "cosine_similarity": 1.000184178352356
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.15.self_attn.o_proj": {
+        "qweight": "model.layers.15.self_attn.o_proj.qweight",
+        "scales": "model.layers.15.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00018734083278104663,
+          "max_error": 0.0012649176642298698,
+          "relative_l2": 0.009781744331121445,
+          "cosine_similarity": 0.9999414086341858
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.15.self_attn.qkv_proj": {
+        "qweight": "model.layers.15.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.15.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0001886509999167174,
+          "max_error": 0.0018219240009784698,
+          "relative_l2": 0.008728338405489922,
+          "cosine_similarity": 1.0001134872436523
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.16.mlp.down_proj": {
+        "qweight": "model.layers.16.mlp.down_proj.qweight",
+        "scales": "model.layers.16.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00023601633438374847,
+          "max_error": 0.0018800748512148857,
+          "relative_l2": 0.012015944346785545,
+          "cosine_similarity": 0.9999316930770874
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.16.mlp.gate_up_proj": {
+        "qweight": "model.layers.16.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.16.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00020166323520243168,
+          "max_error": 0.0015897974371910095,
+          "relative_l2": 0.009238099679350853,
+          "cosine_similarity": 1.0002000331878662
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.16.self_attn.o_proj": {
+        "qweight": "model.layers.16.self_attn.o_proj.qweight",
+        "scales": "model.layers.16.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00018909695791080594,
+          "max_error": 0.0013360455632209778,
+          "relative_l2": 0.009950962848961353,
+          "cosine_similarity": 0.9999289512634277
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.16.self_attn.qkv_proj": {
+        "qweight": "model.layers.16.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.16.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0001938859059009701,
+          "max_error": 0.003254566341638565,
+          "relative_l2": 0.008927062153816223,
+          "cosine_similarity": 1.000159740447998
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.17.mlp.down_proj": {
+        "qweight": "model.layers.17.mlp.down_proj.qweight",
+        "scales": "model.layers.17.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00022101258218754083,
+          "max_error": 0.0014609992504119873,
+          "relative_l2": 0.01086716540157795,
+          "cosine_similarity": 0.9999580383300781
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.17.mlp.gate_up_proj": {
+        "qweight": "model.layers.17.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.17.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00020277092698961496,
+          "max_error": 0.0015378892421722412,
+          "relative_l2": 0.009140228852629662,
+          "cosine_similarity": 1.0001816749572754
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.17.self_attn.o_proj": {
+        "qweight": "model.layers.17.self_attn.o_proj.qweight",
+        "scales": "model.layers.17.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00019514505402185023,
+          "max_error": 0.0010524969547986984,
+          "relative_l2": 0.010157565586268902,
+          "cosine_similarity": 0.9999391436576843
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.17.self_attn.qkv_proj": {
+        "qweight": "model.layers.17.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.17.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00019696960225701332,
+          "max_error": 0.0013764053583145142,
+          "relative_l2": 0.00889983493834734,
+          "cosine_similarity": 1.000097393989563
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.18.mlp.down_proj": {
+        "qweight": "model.layers.18.mlp.down_proj.qweight",
+        "scales": "model.layers.18.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.000239108907408081,
+          "max_error": 0.0017820335924625397,
+          "relative_l2": 0.011351970955729485,
+          "cosine_similarity": 0.9999136924743652
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.18.mlp.gate_up_proj": {
+        "qweight": "model.layers.18.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.18.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00020598382980097085,
+          "max_error": 0.0023673949763178825,
+          "relative_l2": 0.00932175200432539,
+          "cosine_similarity": 1.000185251235962
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.18.self_attn.o_proj": {
+        "qweight": "model.layers.18.self_attn.o_proj.qweight",
+        "scales": "model.layers.18.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00017643184401094913,
+          "max_error": 0.0009977072477340698,
+          "relative_l2": 0.00956779532134533,
+          "cosine_similarity": 0.9999380707740784
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.18.self_attn.qkv_proj": {
+        "qweight": "model.layers.18.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.18.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0001891775318654254,
+          "max_error": 0.0016378611326217651,
+          "relative_l2": 0.008772558532655239,
+          "cosine_similarity": 1.0001182556152344
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.19.mlp.down_proj": {
+        "qweight": "model.layers.19.mlp.down_proj.qweight",
+        "scales": "model.layers.19.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00026224827161058784,
+          "max_error": 0.0016743820160627365,
+          "relative_l2": 0.012015688233077526,
+          "cosine_similarity": 0.9999302625656128
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.19.mlp.gate_up_proj": {
+        "qweight": "model.layers.19.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.19.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00021244942035991699,
+          "max_error": 0.0023673949763178825,
+          "relative_l2": 0.009528436698019505,
+          "cosine_similarity": 1.000166893005371
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.19.self_attn.o_proj": {
+        "qweight": "model.layers.19.self_attn.o_proj.qweight",
+        "scales": "model.layers.19.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0001987448486033827,
+          "max_error": 0.00112152099609375,
+          "relative_l2": 0.010212099179625511,
+          "cosine_similarity": 0.9999337196350098
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.19.self_attn.qkv_proj": {
+        "qweight": "model.layers.19.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.19.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00019643435371108353,
+          "max_error": 0.0016176719218492508,
+          "relative_l2": 0.008914434351027012,
+          "cosine_similarity": 1.0001450777053833
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.2.mlp.down_proj": {
+        "qweight": "model.layers.2.mlp.down_proj.qweight",
+        "scales": "model.layers.2.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002128982887370512,
+          "max_error": 0.002288818359375,
+          "relative_l2": 0.01090738270431757,
+          "cosine_similarity": 0.9999547004699707
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.2.mlp.gate_up_proj": {
+        "qweight": "model.layers.2.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.2.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00022404089395422488,
+          "max_error": 0.0020795203745365143,
+          "relative_l2": 0.008376656100153923,
+          "cosine_similarity": 1.0003993511199951
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.2.self_attn.o_proj": {
+        "qweight": "model.layers.2.self_attn.o_proj.qweight",
+        "scales": "model.layers.2.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00021302580717019737,
+          "max_error": 0.0012303143739700317,
+          "relative_l2": 0.009871216490864754,
+          "cosine_similarity": 0.9999493956565857
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.2.self_attn.qkv_proj": {
+        "qweight": "model.layers.2.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.2.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002040069957729429,
+          "max_error": 0.0020294189453125,
+          "relative_l2": 0.008625810965895653,
+          "cosine_similarity": 1.0000669956207275
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.20.mlp.down_proj": {
+        "qweight": "model.layers.20.mlp.down_proj.qweight",
+        "scales": "model.layers.20.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002608533250167966,
+          "max_error": 0.002104993909597397,
+          "relative_l2": 0.011203375644981861,
+          "cosine_similarity": 0.9999250173568726
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.20.mlp.gate_up_proj": {
+        "qweight": "model.layers.20.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.20.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002150084328604862,
+          "max_error": 0.002352982759475708,
+          "relative_l2": 0.009123122319579124,
+          "cosine_similarity": 1.0001405477523804
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.20.self_attn.o_proj": {
+        "qweight": "model.layers.20.self_attn.o_proj.qweight",
+        "scales": "model.layers.20.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00020871474407613277,
+          "max_error": 0.0014071762561798096,
+          "relative_l2": 0.010194258764386177,
+          "cosine_similarity": 0.9999414682388306
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.20.self_attn.qkv_proj": {
+        "qweight": "model.layers.20.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.20.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00022143310343381017,
+          "max_error": 0.0017301291227340698,
+          "relative_l2": 0.009430431760847569,
+          "cosine_similarity": 1.0001357793807983
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.21.mlp.down_proj": {
+        "qweight": "model.layers.21.mlp.down_proj.qweight",
+        "scales": "model.layers.21.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002725816739257425,
+          "max_error": 0.0023673949763178825,
+          "relative_l2": 0.010913759469985962,
+          "cosine_similarity": 0.9999034404754639
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.21.mlp.gate_up_proj": {
+        "qweight": "model.layers.21.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.21.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002213323168689385,
+          "max_error": 0.002457265742123127,
+          "relative_l2": 0.009007804095745087,
+          "cosine_similarity": 1.0001075267791748
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.21.self_attn.o_proj": {
+        "qweight": "model.layers.21.self_attn.o_proj.qweight",
+        "scales": "model.layers.21.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00023166734899859875,
+          "max_error": 0.0011995583772659302,
+          "relative_l2": 0.01068282499909401,
+          "cosine_similarity": 0.9999210834503174
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.21.self_attn.qkv_proj": {
+        "qweight": "model.layers.21.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.21.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00021588591334875673,
+          "max_error": 0.002474086359143257,
+          "relative_l2": 0.00902603566646576,
+          "cosine_similarity": 1.0001308917999268
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.22.mlp.down_proj": {
+        "qweight": "model.layers.22.mlp.down_proj.qweight",
+        "scales": "model.layers.22.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00027375525678507984,
+          "max_error": 0.0025029219686985016,
+          "relative_l2": 0.010469650849699974,
+          "cosine_similarity": 0.9999309778213501
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.22.mlp.gate_up_proj": {
+        "qweight": "model.layers.22.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.22.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00022707223251927644,
+          "max_error": 0.0026720911264419556,
+          "relative_l2": 0.00879181269556284,
+          "cosine_similarity": 1.0001107454299927
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.22.self_attn.o_proj": {
+        "qweight": "model.layers.22.self_attn.o_proj.qweight",
+        "scales": "model.layers.22.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002088088367599994,
+          "max_error": 0.0012802965939044952,
+          "relative_l2": 0.009455989114940166,
+          "cosine_similarity": 0.9999449253082275
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.22.self_attn.qkv_proj": {
+        "qweight": "model.layers.22.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.22.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002170772640965879,
+          "max_error": 0.001353338360786438,
+          "relative_l2": 0.008920562453567982,
+          "cosine_similarity": 1.0001128911972046
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.23.mlp.down_proj": {
+        "qweight": "model.layers.23.mlp.down_proj.qweight",
+        "scales": "model.layers.23.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00027567092911340296,
+          "max_error": 0.002781664952635765,
+          "relative_l2": 0.010462961159646511,
+          "cosine_similarity": 0.9999417066574097
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.23.mlp.gate_up_proj": {
+        "qweight": "model.layers.23.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.23.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00022702867863699794,
+          "max_error": 0.0028374120593070984,
+          "relative_l2": 0.008533033542335033,
+          "cosine_similarity": 1.000110387802124
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.23.self_attn.o_proj": {
+        "qweight": "model.layers.23.self_attn.o_proj.qweight",
+        "scales": "model.layers.23.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00021323931287042797,
+          "max_error": 0.0010832529515028,
+          "relative_l2": 0.009521501138806343,
+          "cosine_similarity": 0.9999533891677856
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.23.self_attn.qkv_proj": {
+        "qweight": "model.layers.23.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.23.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00021957035642117262,
+          "max_error": 0.001503288745880127,
+          "relative_l2": 0.009441964328289032,
+          "cosine_similarity": 1.000106930732727
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.24.mlp.down_proj": {
+        "qweight": "model.layers.24.mlp.down_proj.qweight",
+        "scales": "model.layers.24.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002722433127928525,
+          "max_error": 0.0018992982804775238,
+          "relative_l2": 0.01002935878932476,
+          "cosine_similarity": 0.9999468326568604
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.24.mlp.gate_up_proj": {
+        "qweight": "model.layers.24.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.24.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00022594699112232774,
+          "max_error": 0.0023943083360791206,
+          "relative_l2": 0.008464166894555092,
+          "cosine_similarity": 1.0000860691070557
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.24.self_attn.o_proj": {
+        "qweight": "model.layers.24.self_attn.o_proj.qweight",
+        "scales": "model.layers.24.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00019921660714317113,
+          "max_error": 0.0009804069995880127,
+          "relative_l2": 0.008845910429954529,
+          "cosine_similarity": 0.9999443292617798
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.24.self_attn.qkv_proj": {
+        "qweight": "model.layers.24.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.24.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00022244146384764463,
+          "max_error": 0.0017282068729400635,
+          "relative_l2": 0.00926817487925291,
+          "cosine_similarity": 1.0001152753829956
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.25.mlp.down_proj": {
+        "qweight": "model.layers.25.mlp.down_proj.qweight",
+        "scales": "model.layers.25.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00026489244191907346,
+          "max_error": 0.0023956298828125,
+          "relative_l2": 0.009654275141656399,
+          "cosine_similarity": 0.9999489784240723
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.25.mlp.gate_up_proj": {
+        "qweight": "model.layers.25.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.25.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002247076918138191,
+          "max_error": 0.0026720911264419556,
+          "relative_l2": 0.008522098883986473,
+          "cosine_similarity": 1.0000896453857422
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.25.self_attn.o_proj": {
+        "qweight": "model.layers.25.self_attn.o_proj.qweight",
+        "scales": "model.layers.25.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00021559606830123812,
+          "max_error": 0.0009342730045318604,
+          "relative_l2": 0.009091068990528584,
+          "cosine_similarity": 0.9999503493309021
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.25.self_attn.qkv_proj": {
+        "qweight": "model.layers.25.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.25.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00022222986444830894,
+          "max_error": 0.0015508700162172318,
+          "relative_l2": 0.009145042859017849,
+          "cosine_similarity": 1.0001240968704224
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.26.mlp.down_proj": {
+        "qweight": "model.layers.26.mlp.down_proj.qweight",
+        "scales": "model.layers.26.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002623481850605458,
+          "max_error": 0.0025202231481671333,
+          "relative_l2": 0.010084738954901695,
+          "cosine_similarity": 0.9999499320983887
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.26.mlp.gate_up_proj": {
+        "qweight": "model.layers.26.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.26.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00022390014783013612,
+          "max_error": 0.0043330118060112,
+          "relative_l2": 0.008689775131642818,
+          "cosine_similarity": 1.0001087188720703
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.26.self_attn.o_proj": {
+        "qweight": "model.layers.26.self_attn.o_proj.qweight",
+        "scales": "model.layers.26.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.000227140131755732,
+          "max_error": 0.0015595201402902603,
+          "relative_l2": 0.010004767216742039,
+          "cosine_similarity": 0.999969482421875
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.26.self_attn.qkv_proj": {
+        "qweight": "model.layers.26.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.26.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.000221468711970374,
+          "max_error": 0.0013523846864700317,
+          "relative_l2": 0.008867887780070305,
+          "cosine_similarity": 1.0001239776611328
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.27.mlp.down_proj": {
+        "qweight": "model.layers.27.mlp.down_proj.qweight",
+        "scales": "model.layers.27.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002437441871734336,
+          "max_error": 0.0021828487515449524,
+          "relative_l2": 0.011025302112102509,
+          "cosine_similarity": 0.9999528527259827
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.27.mlp.gate_up_proj": {
+        "qweight": "model.layers.27.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.27.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00021937453129794449,
+          "max_error": 0.004859745502471924,
+          "relative_l2": 0.008770030923187733,
+          "cosine_similarity": 1.0001556873321533
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.27.self_attn.o_proj": {
+        "qweight": "model.layers.27.self_attn.o_proj.qweight",
+        "scales": "model.layers.27.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002177729329559952,
+          "max_error": 0.0011995583772659302,
+          "relative_l2": 0.008751609362661839,
+          "cosine_similarity": 0.9999451637268066
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.27.self_attn.qkv_proj": {
+        "qweight": "model.layers.27.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.27.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00021278364874888211,
+          "max_error": 0.0026740124449133873,
+          "relative_l2": 0.008455178700387478,
+          "cosine_similarity": 1.0000169277191162
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.3.mlp.down_proj": {
+        "qweight": "model.layers.3.mlp.down_proj.qweight",
+        "scales": "model.layers.3.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00020418509666342288,
+          "max_error": 0.0015436606481671333,
+          "relative_l2": 0.010043288581073284,
+          "cosine_similarity": 0.9999598264694214
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.3.mlp.gate_up_proj": {
+        "qweight": "model.layers.3.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.3.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002268448588438332,
+          "max_error": 0.0018800748512148857,
+          "relative_l2": 0.008308921940624714,
+          "cosine_similarity": 1.0003670454025269
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.3.self_attn.o_proj": {
+        "qweight": "model.layers.3.self_attn.o_proj.qweight",
+        "scales": "model.layers.3.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002315480523975566,
+          "max_error": 0.0011380314826965332,
+          "relative_l2": 0.009817586280405521,
+          "cosine_similarity": 0.9999295473098755
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.3.self_attn.qkv_proj": {
+        "qweight": "model.layers.3.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.3.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00021360839309636503,
+          "max_error": 0.0021665059030056,
+          "relative_l2": 0.008929240517318249,
+          "cosine_similarity": 1.0000429153442383
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.4.mlp.down_proj": {
+        "qweight": "model.layers.4.mlp.down_proj.qweight",
+        "scales": "model.layers.4.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00021029403433203697,
+          "max_error": 0.0015263594686985016,
+          "relative_l2": 0.010281311348080635,
+          "cosine_similarity": 0.9999540448188782
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.4.mlp.gate_up_proj": {
+        "qweight": "model.layers.4.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.4.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00021985721832606941,
+          "max_error": 0.0016301684081554413,
+          "relative_l2": 0.008230563253164291,
+          "cosine_similarity": 1.0003942251205444
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.4.self_attn.o_proj": {
+        "qweight": "model.layers.4.self_attn.o_proj.qweight",
+        "scales": "model.layers.4.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002290245465701446,
+          "max_error": 0.0014283191412687302,
+          "relative_l2": 0.01010590698570013,
+          "cosine_similarity": 0.9999586343765259
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.4.self_attn.qkv_proj": {
+        "qweight": "model.layers.4.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.4.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00020533669157885015,
+          "max_error": 0.002130463719367981,
+          "relative_l2": 0.008576257154345512,
+          "cosine_similarity": 1.000049352645874
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.5.mlp.down_proj": {
+        "qweight": "model.layers.5.mlp.down_proj.qweight",
+        "scales": "model.layers.5.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00021923374151811004,
+          "max_error": 0.001628246158361435,
+          "relative_l2": 0.010202690958976746,
+          "cosine_similarity": 0.9999544024467468
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.5.mlp.gate_up_proj": {
+        "qweight": "model.layers.5.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.5.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002134701207978651,
+          "max_error": 0.0022414810955524445,
+          "relative_l2": 0.008336073718965054,
+          "cosine_similarity": 1.0003139972686768
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.5.self_attn.o_proj": {
+        "qweight": "model.layers.5.self_attn.o_proj.qweight",
+        "scales": "model.layers.5.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00023714506824035197,
+          "max_error": 0.0023345947265625,
+          "relative_l2": 0.010704769752919674,
+          "cosine_similarity": 0.9999231696128845
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.5.self_attn.qkv_proj": {
+        "qweight": "model.layers.5.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.5.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00020801136270165443,
+          "max_error": 0.001676306128501892,
+          "relative_l2": 0.008604105561971664,
+          "cosine_similarity": 1.000077247619629
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.6.mlp.down_proj": {
+        "qweight": "model.layers.6.mlp.down_proj.qweight",
+        "scales": "model.layers.6.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00021420586563181132,
+          "max_error": 0.002781664952635765,
+          "relative_l2": 0.010105649009346962,
+          "cosine_similarity": 0.9999535083770752
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.6.mlp.gate_up_proj": {
+        "qweight": "model.layers.6.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.6.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00020921880786772817,
+          "max_error": 0.0012226253747940063,
+          "relative_l2": 0.00828364584594965,
+          "cosine_similarity": 1.0003252029418945
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.6.self_attn.o_proj": {
+        "qweight": "model.layers.6.self_attn.o_proj.qweight",
+        "scales": "model.layers.6.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00020632855012081563,
+          "max_error": 0.001414380967617035,
+          "relative_l2": 0.009744459763169289,
+          "cosine_similarity": 0.9999467730522156
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.6.self_attn.qkv_proj": {
+        "qweight": "model.layers.6.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.6.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00020113942446187139,
+          "max_error": 0.0019683837890625,
+          "relative_l2": 0.00873381458222866,
+          "cosine_similarity": 1.0000988245010376
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.7.mlp.down_proj": {
+        "qweight": "model.layers.7.mlp.down_proj.qweight",
+        "scales": "model.layers.7.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002193696709582582,
+          "max_error": 0.0022414810955524445,
+          "relative_l2": 0.010539178736507893,
+          "cosine_similarity": 0.9999359250068665
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.7.mlp.gate_up_proj": {
+        "qweight": "model.layers.7.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.7.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00020738407329190522,
+          "max_error": 0.0012976005673408508,
+          "relative_l2": 0.00823162030428648,
+          "cosine_similarity": 1.0003318786621094
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.7.self_attn.o_proj": {
+        "qweight": "model.layers.7.self_attn.o_proj.qweight",
+        "scales": "model.layers.7.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00019804206385742873,
+          "max_error": 0.001313457265496254,
+          "relative_l2": 0.009316105395555496,
+          "cosine_similarity": 0.9999346733093262
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.7.self_attn.qkv_proj": {
+        "qweight": "model.layers.7.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.7.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00019864743808284402,
+          "max_error": 0.0019989013671875,
+          "relative_l2": 0.008615244179964066,
+          "cosine_similarity": 1.000058889389038
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.8.mlp.down_proj": {
+        "qweight": "model.layers.8.mlp.down_proj.qweight",
+        "scales": "model.layers.8.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00021369436581153423,
+          "max_error": 0.0014831051230430603,
+          "relative_l2": 0.01007848046720028,
+          "cosine_similarity": 0.9999804496765137
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.8.mlp.gate_up_proj": {
+        "qweight": "model.layers.8.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.8.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00020623166346922517,
+          "max_error": 0.0032397895120084286,
+          "relative_l2": 0.00832606665790081,
+          "cosine_similarity": 1.000306248664856
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.8.self_attn.o_proj": {
+        "qweight": "model.layers.8.self_attn.o_proj.qweight",
+        "scales": "model.layers.8.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00019849956152029335,
+          "max_error": 0.0013379603624343872,
+          "relative_l2": 0.009498374536633492,
+          "cosine_similarity": 0.9999420642852783
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.8.self_attn.qkv_proj": {
+        "qweight": "model.layers.8.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.8.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00020270337699912488,
+          "max_error": 0.002644216176122427,
+          "relative_l2": 0.00889014732092619,
+          "cosine_similarity": 1.0000587701797485
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.9.mlp.down_proj": {
+        "qweight": "model.layers.9.mlp.down_proj.qweight",
+        "scales": "model.layers.9.mlp.down_proj.scales",
+        "reference_shape": [
+          1024,
+          3072
+        ],
+        "qweight_shape": [
+          1024,
+          3072
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00021418144751805812,
+          "max_error": 0.0015897974371910095,
+          "relative_l2": 0.010345830582082272,
+          "cosine_similarity": 0.9999602437019348
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.9.mlp.gate_up_proj": {
+        "qweight": "model.layers.9.mlp.gate_up_proj.qweight",
+        "scales": "model.layers.9.mlp.gate_up_proj.scales",
+        "reference_shape": [
+          6144,
+          1024
+        ],
+        "qweight_shape": [
+          6144,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          6144
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002107928739860654,
+          "max_error": 0.0017743445932865143,
+          "relative_l2": 0.008380400948226452,
+          "cosine_similarity": 1.0003074407577515
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.9.self_attn.o_proj": {
+        "qweight": "model.layers.9.self_attn.o_proj.qweight",
+        "scales": "model.layers.9.self_attn.o_proj.scales",
+        "reference_shape": [
+          1024,
+          2048
+        ],
+        "qweight_shape": [
+          1024,
+          2048
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          1024
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.0002267673989990726,
+          "max_error": 0.0013821818865835667,
+          "relative_l2": 0.010860632173717022,
+          "cosine_similarity": 0.9999326467514038
+        },
+        "passed": true,
+        "errors": []
+      },
+      "model.layers.9.self_attn.qkv_proj": {
+        "qweight": "model.layers.9.self_attn.qkv_proj.qweight",
+        "scales": "model.layers.9.self_attn.qkv_proj.scales",
+        "reference_shape": [
+          4096,
+          1024
+        ],
+        "qweight_shape": [
+          4096,
+          1024
+        ],
+        "qweight_dtype": "torch.int8",
+        "scales_shape": [
+          4096
+        ],
+        "scales_dtype": "torch.float32",
+        "reconstruction": {
+          "mae": 0.00020301376935094595,
+          "max_error": 0.002105712890625,
+          "relative_l2": 0.008948951959609985,
+          "cosine_similarity": 1.0000838041305542
+        },
+        "passed": true,
+        "errors": []
+      }
+    },
+    "summary": {
+      "expected_layers": 112,
+      "checked_layers": 112,
+      "passed_layers": 112,
+      "mean_mae": 0.0002148097973986296,
+      "mean_relative_l2": 0.009493430352969361,
+      "min_cosine_similarity": 0.9999034404754639
+    }
+  },
+  "logits_check": null,
+  "ppl_check": null,
+  "generation_check": null,
+  "summary": {
+    "passed": true,
+    "stages": {
+      "artifact_check": true,
+      "logits_check": null,
+      "ppl_check": null,
+      "generation_check": null
+    },
+    "failures": []
+  }
+}

@@ -1,6 +1,7 @@
 import pickle
 import torch
 import torch.distributed as dist
+import torch.nn.functional as F
 from multiprocessing.synchronize import Event
 from multiprocessing.shared_memory import SharedMemory
 
@@ -22,19 +23,26 @@ class ModelRunner:
         self.world_size = config.tensor_parallel_size
         self.rank = rank
         self.event = event
+        self.memory_snapshots = {}
 
         dist.init_process_group("nccl", "tcp://localhost:2333", world_size=self.world_size, rank=rank)
         torch.cuda.set_device(rank)
         default_dtype = torch.get_default_dtype()
         torch.set_default_dtype(hf_config.torch_dtype)
         torch.set_default_device("cuda")
+        hf_config.nanovllm_quantization = config.quantization
         self.model = Qwen3ForCausalLM(hf_config)
-        load_model(self.model, config.model)
+        weight_path = config.quantized_model_path or config.model
+        load_model(self.model, weight_path, quantization=config.quantization)
+        self.capture_memory_snapshot("after_model_load")
         self.sampler = Sampler()
         self.warmup_model()
+        self.capture_memory_snapshot("after_warmup")
         self.allocate_kv_cache()
+        self.capture_memory_snapshot("after_kv_cache")
         if not self.enforce_eager:
             self.capture_cudagraph()
+            self.capture_memory_snapshot("after_cuda_graph")
         torch.set_default_device("cpu")
         torch.set_default_dtype(default_dtype)
 
@@ -57,6 +65,17 @@ class ModelRunner:
             del self.graphs, self.graph_pool
         torch.cuda.synchronize()
         dist.destroy_process_group()
+
+    def capture_memory_snapshot(self, name: str):
+        torch.cuda.synchronize()
+        free, total = torch.cuda.mem_get_info()
+        self.memory_snapshots[name] = {
+            "memory_allocated": int(torch.cuda.memory_allocated()),
+            "max_memory_allocated": int(torch.cuda.max_memory_allocated()),
+            "memory_reserved": int(torch.cuda.memory_reserved()),
+            "free_memory": int(free),
+            "total_memory": int(total),
+        }
 
     def loop(self):
         while True:
@@ -209,6 +228,39 @@ class ModelRunner:
             graph_vars["block_tables"][:bs, :context.block_tables.size(1)] = context.block_tables
             graph.replay()
             return self.model.compute_logits(graph_vars["outputs"][:bs])
+
+    def compute_full_logits(self, hidden_states: torch.Tensor) -> torch.Tensor | None:
+        logits = F.linear(hidden_states, self.model.lm_head.weight)
+        if self.world_size > 1:
+            all_logits = [torch.empty_like(logits) for _ in range(self.world_size)] if self.rank == 0 else None
+            dist.gather(logits, all_logits, 0)
+            logits = torch.cat(all_logits, -1) if self.rank == 0 else None
+        return logits
+
+    @torch.inference_mode()
+    def prefill_last_logits(self, token_ids_batch: list[list[int]]) -> torch.Tensor | None:
+        seqs = [Sequence(token_ids) for token_ids in token_ids_batch]
+        input_ids, positions = self.prepare_prefill(seqs)
+        context = get_context()
+        context.slot_mapping = torch.full((input_ids.numel(),), -1, dtype=torch.int32, device=input_ids.device)
+        try:
+            logits = self.run_model(input_ids, positions, True)
+            return logits.float().cpu() if self.rank == 0 else None
+        finally:
+            reset_context()
+
+    @torch.inference_mode()
+    def prefill_full_logits(self, token_ids: list[int]) -> torch.Tensor | None:
+        seqs = [Sequence(token_ids)]
+        input_ids, positions = self.prepare_prefill(seqs)
+        context = get_context()
+        context.slot_mapping = torch.full((input_ids.numel(),), -1, dtype=torch.int32, device=input_ids.device)
+        try:
+            hidden_states = self.model(input_ids, positions)
+            logits = self.compute_full_logits(hidden_states)
+            return logits.float().cpu() if self.rank == 0 else None
+        finally:
+            reset_context()
 
     def run(self, seqs: list[Sequence], is_prefill: bool) -> list[int]:
         # 1. 备菜：把 Python 对象变成 GPU 认识的张量 (Tensor)

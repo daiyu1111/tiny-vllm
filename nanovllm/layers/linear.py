@@ -3,6 +3,9 @@ from torch import nn
 import torch.nn.functional as F
 import torch.distributed as dist
 
+from nanovllm.quantization import Int8WeightOnlyQuantMethod
+from nanovllm.quantization.cuda import apply_int8_weight_only_linear
+
 
 def divide(numerator, denominator):
     assert numerator % denominator == 0
@@ -16,21 +19,46 @@ class LinearBase(nn.Module):
         input_size: int,
         output_size: int,
         bias: bool = False,
-        tp_dim: int | None = None,#张量并行的维度。如果为 0：通常代表按输出维度（列）切分。
-                                    #如果为 1：通常代表按输入维度（行）切分
-                                    #如果为 None：代表不参与切分（或者是被子类忽略的纯粹基类）。
+        tp_dim: int | None = None,
+        quantization: str | None = None,
     ):
         super().__init__()
+        if quantization not in (None, "int8"):
+            raise NotImplementedError(f"Unsupported linear quantization: {quantization}")
         self.tp_dim = tp_dim
-        self.tp_rank = dist.get_rank()#获取当前进程（通常也就是当前 GPU）在通信组里的全局序号
-        self.tp_size = dist.get_world_size()#获取当前进程（通常也就是当前 GPU）在通信组里的全局序号
-        self.weight = nn.Parameter(torch.empty(output_size, input_size))
-        self.weight.weight_loader = self.weight_loader
+        self.tp_rank = dist.get_rank()
+        self.tp_size = dist.get_world_size()
+        self.quantization = quantization
+        self.quant_method = Int8WeightOnlyQuantMethod() if quantization == "int8" else None
+        if self.quant_method is None:
+            self.weight = nn.Parameter(torch.empty(output_size, input_size))
+            self.weight.weight_loader = self.weight_loader
+        else:
+            self.quant_method.create_weights(self, input_size, output_size)
+            self.qweight.weight_loader = self.qweight_loader
+            self.scales.weight_loader = self.scales_loader
         if bias:
             self.bias = nn.Parameter(torch.empty(output_size))
-            self.bias.weight_loader = self.weight_loader
+            self.bias.weight_loader = self.bias_loader
         else:
             self.register_parameter("bias", None)
+
+    def weight_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor):
+        param.data.copy_(loaded_weight)
+
+    def bias_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor):
+        self.weight_loader(param, loaded_weight)
+
+    def qweight_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor):
+        self.weight_loader(param, loaded_weight)
+
+    def scales_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor):
+        self.weight_loader(param, loaded_weight)
+
+    def apply_linear(self, x: torch.Tensor) -> torch.Tensor:
+        if self.quant_method is not None:
+            return self.quant_method.apply(x, self)
+        return F.linear(x, self.weight, self.bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError
@@ -43,14 +71,12 @@ class ReplicatedLinear(LinearBase):
         input_size: int,
         output_size: int,
         bias: bool = False,
+        quantization: str | None = None,
     ):
-        super().__init__(input_size, output_size, bias)
-
-    def weight_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor):
-        param.data.copy_(loaded_weight)
+        super().__init__(input_size, output_size, bias, quantization=quantization)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return F.linear(x, self.weight, self.bias)#完全复制，无需卡间通信，保留它是基于计算通信比的现实考量：维度太小的层，切了反而更慢
+        return self.apply_linear(x)
 
 
 class ColumnParallelLinear(LinearBase):
@@ -60,9 +86,10 @@ class ColumnParallelLinear(LinearBase):
         input_size: int,
         output_size: int,
         bias: bool = False,
+        quantization: str | None = None,
     ):
         tp_size = dist.get_world_size()
-        super().__init__(input_size, divide(output_size, tp_size), bias, 0)
+        super().__init__(input_size, divide(output_size, tp_size), bias, 0, quantization)
 
     def weight_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor):
         param_data = param.data
@@ -71,24 +98,28 @@ class ColumnParallelLinear(LinearBase):
         loaded_weight = loaded_weight.narrow(self.tp_dim, start_idx, shard_size)
         param_data.copy_(loaded_weight)
 
+    def scales_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor):
+        param_data = param.data
+        shard_size = param_data.size(0)
+        start_idx = self.tp_rank * shard_size
+        loaded_weight = loaded_weight.narrow(0, start_idx, shard_size)
+        param_data.copy_(loaded_weight)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return F.linear(x, self.weight, self.bias)
+        return self.apply_linear(x)
 
 
 class MergedColumnParallelLinear(ColumnParallelLinear):
-    """通过 MergedColumnParallelLinear，我们将 $W_{gate}$ 和 $W_{up}$ 拼接成了一个矩阵。
-    在前向传播时，只需要执行一次矩阵乘法 $Gate\_Up = X \cdot W_{merged}$，
-    就同时算出了两部分的输出。随后丢给 SiluAndMul() 激活算子（它内部会把这个大张量切开做乘法），
-    完美实现了效率的最大化。"""
 
     def __init__(
         self,
         input_size: int,
         output_sizes: list[int],
         bias: bool = False,
+        quantization: str | None = None,
     ):
         self.output_sizes = output_sizes
-        super().__init__(input_size, sum(output_sizes), bias)
+        super().__init__(input_size, sum(output_sizes), bias, quantization)
 
     def weight_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor, loaded_shard_id: int):
         param_data = param.data
@@ -97,6 +128,40 @@ class MergedColumnParallelLinear(ColumnParallelLinear):
         param_data = param_data.narrow(self.tp_dim, shard_offset, shard_size)
         loaded_weight = loaded_weight.chunk(self.tp_size, self.tp_dim)[self.tp_rank]
         param_data.copy_(loaded_weight)
+
+    def packed_weight_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor):
+        param_data = param.data
+        for shard_id, output_size in enumerate(self.output_sizes):
+            dst_offset = sum(self.output_sizes[:shard_id]) // self.tp_size
+            dst_size = output_size // self.tp_size
+            src_offset = sum(self.output_sizes[:shard_id])
+            dst = param_data.narrow(self.tp_dim, dst_offset, dst_size)
+            src = loaded_weight.narrow(self.tp_dim, src_offset, output_size)
+            src = src.chunk(self.tp_size, self.tp_dim)[self.tp_rank]
+            dst.copy_(src)
+
+    def packed_scales_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor):
+        param_data = param.data
+        for shard_id, output_size in enumerate(self.output_sizes):
+            dst_offset = sum(self.output_sizes[:shard_id]) // self.tp_size
+            dst_size = output_size // self.tp_size
+            src_offset = sum(self.output_sizes[:shard_id])
+            dst = param_data.narrow(0, dst_offset, dst_size)
+            src = loaded_weight.narrow(0, src_offset, output_size)
+            src = src.chunk(self.tp_size, 0)[self.tp_rank]
+            dst.copy_(src)
+
+    def bias_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor, loaded_shard_id: int | None = None):
+        if loaded_shard_id is None:
+            self.packed_scales_loader(param, loaded_weight)
+        else:
+            self.weight_loader(param, loaded_weight, loaded_shard_id)
+
+    def qweight_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor):
+        self.packed_weight_loader(param, loaded_weight)
+
+    def scales_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor):
+        self.packed_scales_loader(param, loaded_weight)
 
 
 class QKVParallelLinear(ColumnParallelLinear):
@@ -108,6 +173,7 @@ class QKVParallelLinear(ColumnParallelLinear):
         total_num_heads: int,
         total_num_kv_heads: int | None = None,
         bias: bool = False,
+        quantization: str | None = None,
     ):
         tp_size = dist.get_world_size()
         total_num_kv_heads = total_num_kv_heads or total_num_heads
@@ -115,7 +181,7 @@ class QKVParallelLinear(ColumnParallelLinear):
         self.num_heads = divide(total_num_heads, tp_size)
         self.num_kv_heads = divide(total_num_kv_heads, tp_size)
         output_size = (total_num_heads + 2 * total_num_kv_heads) * self.head_size
-        super().__init__(hidden_size, output_size, bias)
+        super().__init__(hidden_size, output_size, bias, quantization)
 
     def weight_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor, loaded_shard_id: str):
         param_data = param.data
@@ -133,6 +199,43 @@ class QKVParallelLinear(ColumnParallelLinear):
         loaded_weight = loaded_weight.chunk(self.tp_size, self.tp_dim)[self.tp_rank]
         param_data.copy_(loaded_weight)
 
+    def qkv_shards(self):
+        q_size = self.num_heads * self.head_size
+        kv_size = self.num_kv_heads * self.head_size
+        return (
+            (0, q_size, 0, q_size * self.tp_size),
+            (q_size, kv_size, q_size * self.tp_size, kv_size * self.tp_size),
+            (q_size + kv_size, kv_size, (q_size + kv_size) * self.tp_size, kv_size * self.tp_size),
+        )
+
+    def packed_weight_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor):
+        param_data = param.data
+        for dst_offset, dst_size, src_offset, src_size in self.qkv_shards():
+            dst = param_data.narrow(self.tp_dim, dst_offset, dst_size)
+            src = loaded_weight.narrow(self.tp_dim, src_offset, src_size)
+            src = src.chunk(self.tp_size, self.tp_dim)[self.tp_rank]
+            dst.copy_(src)
+
+    def packed_scales_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor):
+        param_data = param.data
+        for dst_offset, dst_size, src_offset, src_size in self.qkv_shards():
+            dst = param_data.narrow(0, dst_offset, dst_size)
+            src = loaded_weight.narrow(0, src_offset, src_size)
+            src = src.chunk(self.tp_size, 0)[self.tp_rank]
+            dst.copy_(src)
+
+    def bias_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor, loaded_shard_id: str | None = None):
+        if loaded_shard_id is None:
+            self.packed_scales_loader(param, loaded_weight)
+        else:
+            self.weight_loader(param, loaded_weight, loaded_shard_id)
+
+    def qweight_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor):
+        self.packed_weight_loader(param, loaded_weight)
+
+    def scales_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor):
+        self.packed_scales_loader(param, loaded_weight)
+
 
 class RowParallelLinear(LinearBase):
 
@@ -141,9 +244,10 @@ class RowParallelLinear(LinearBase):
         input_size: int,
         output_size: int,
         bias: bool = False,
+        quantization: str | None = None,
     ):
         tp_size = dist.get_world_size()
-        super().__init__(divide(input_size, tp_size), output_size, bias, 1)
+        super().__init__(divide(input_size, tp_size), output_size, bias, 1, quantization)
 
     def weight_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor):
         param_data = param.data
@@ -152,8 +256,14 @@ class RowParallelLinear(LinearBase):
         loaded_weight = loaded_weight.narrow(self.tp_dim, start_idx, shard_size)
         param_data.copy_(loaded_weight)
 
+    def scales_loader(self, param: nn.Parameter, loaded_weight: torch.Tensor):
+        param.data.copy_(loaded_weight)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        y = F.linear(x, self.weight, self.bias if self.tp_rank == 0 else None)
+        if self.quant_method is not None:
+            y = apply_int8_weight_only_linear(x, self.qweight, self.scales, self.bias if self.tp_rank == 0 else None)
+        else:
+            y = F.linear(x, self.weight, self.bias if self.tp_rank == 0 else None)
         if self.tp_size > 1:
-            dist.all_reduce(y)#all_reduce 的默认操作是 SUM（求和）。它会瞬间通过 NVLink 或 PCIe，把所有 GPU 上算出来的局部 y 矩阵按位置相加
-        return y#相加后的完整结果，会同时更新到每一张 GPU 的 y 变量中。
+            dist.all_reduce(y)
+        return y
