@@ -61,7 +61,7 @@ def _log_backend_event_once(
     qweight: torch.Tensor,
     reason: str | None = None,
 ) -> None:
-    event = f"{backend}:{phase}:{path}:{reason or ''}:{x.dtype}:{tuple(x.shape)}:{tuple(qweight.shape)}"
+    event = f"{backend}:{phase}:{path}:{reason or ''}:{x.dtype}"
     message = (
         "[nanovllm.int8] "
         f"backend={backend} phase={phase} path={path} "
