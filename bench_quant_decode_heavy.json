@@ -1,0 +1,852 @@
+{
+  "created_at": "2026-04-21T11:53:18.401937Z",
+  "report_type": "sweep",
+  "comparison_modes": {
+    "fixed_config": "Control-variable comparison under identical workload and scheduler limits.",
+    "capacity_sweep": "Scaling comparison across max_num_seqs/max_num_batched_tokens operating points."
+  },
+  "cli_args": {
+    "model": "/mnt/workspace/nano-vllm-main/Qwen3-0.6B/qwen/Qwen3-0___6B",
+    "int8_model": "/mnt/workspace/nano-vllm-main/Qwen3-0.6B/qwen/Qwen3-0___6B-int8",
+    "w8a8_model": "/mnt/workspace/nano-vllm-main/Qwen3-0.6B/qwen/Qwen3-0___6B-w8a8",
+    "mode": "all",
+    "num_seqs": 1024,
+    "profile": "decode_heavy",
+    "max_input_len": 1024,
+    "max_output_len": 1024,
+    "fixed_input_len": null,
+    "fixed_output_len": null,
+    "max_model_len": 4096,
+    "tensor_parallel_size": 1,
+    "max_num_seqs": 512,
+    "max_num_batched_tokens": 16384,
+    "gpu_memory_utilization": 0.9,
+    "sweep_max_num_seqs": [
+      128,
+      256,
+      512,
+      768
+    ],
+    "sweep_max_num_batched_tokens": null,
+    "output": "bench_quant_decode_heavy.json",
+    "enforce_eager": false,
+    "seed": 0,
+    "int8_backend": "native",
+    "compare_cutlass": false,
+    "compare_native": false
+  },
+  "workload": {
+    "profile": "decode_heavy",
+    "fixed_input_len": null,
+    "fixed_output_len": null,
+    "num_seqs": 1024,
+    "input_tokens_total": 65536,
+    "output_tokens_requested_total": 524288,
+    "input_length_min": 64,
+    "input_length_max": 64,
+    "input_length_mean": 64.0,
+    "output_length_min": 512,
+    "output_length_max": 512,
+    "output_length_mean": 512.0
+  },
+  "results": [
+    {
+      "status": "ok",
+      "mode": "bf16",
+      "backend": null,
+      "run_label": "bf16",
+      "config": {
+        "num_seqs": 1024,
+        "profile": "decode_heavy",
+        "max_input_len": 1024,
+        "max_output_len": 1024,
+        "fixed_input_len": null,
+        "fixed_output_len": null,
+        "max_model_len": 4096,
+        "tensor_parallel_size": 1,
+        "max_num_seqs": 128,
+        "max_num_batched_tokens": 16384,
+        "configured_max_num_seqs": 512,
+        "configured_max_num_batched_tokens": 16384,
+        "gpu_memory_utilization": 0.9,
+        "enforce_eager": false,
+        "seed": 0
+      },
+      "total_tokens": 524288,
+      "throughput": 7555.240395102065,
+      "prefill_tps": 53457.40511207821,
+      "decode_tps": 7835.107086129402,
+      "ttft_seconds": 0.8200789242982864,
+      "stats": {
+        "wall_time_seconds": 69.39395341277122,
+        "prefill_tokens": 138439,
+        "prefill_time_seconds": 2.5897066965699196,
+        "prefill_steps": 18,
+        "prefill_tokens_per_second": 53457.40511207821,
+        "decode_tokens": 522150,
+        "decode_time_seconds": 66.64235654473305,
+        "decode_steps": 4080,
+        "decode_tokens_per_second": 7835.107086129402,
+        "ttft_seconds_approx": 0.8200789242982864
+      },
+      "memory_after_load_bytes": {
+        "memory_allocated": 1213085696,
+        "max_memory_allocated": 1524250624,
+        "memory_reserved": 1585446912,
+        "free_memory": 21951610880,
+        "total_memory": 23819976704
+      },
+      "memory_after_load_gib": {
+        "memory_allocated": 1.1297740936279297,
+        "max_memory_allocated": 1.4195690155029297,
+        "memory_reserved": 1.4765625,
+        "free_memory": 20.44403076171875,
+        "total_memory": 22.18408203125
+      },
+      "runtime_memory_bytes": {
+        "memory_allocated": 20578723840,
+        "memory_reserved": 21214789632,
+        "max_memory_allocated": 20823213568
+      },
+      "runtime_memory_gib": {
+        "memory_allocated": 19.165430068969727,
+        "memory_reserved": 19.7578125,
+        "max_memory_allocated": 19.393128871917725
+      },
+      "error": null
+    },
+    {
+      "status": "ok",
+      "mode": "int8",
+      "backend": "native",
+      "run_label": "int8[backend=native]",
+      "config": {
+        "num_seqs": 1024,
+        "profile": "decode_heavy",
+        "max_input_len": 1024,
+        "max_output_len": 1024,
+        "fixed_input_len": null,
+        "fixed_output_len": null,
+        "max_model_len": 4096,
+        "tensor_parallel_size": 1,
+        "max_num_seqs": 128,
+        "max_num_batched_tokens": 16384,
+        "configured_max_num_seqs": 512,
+        "configured_max_num_batched_tokens": 16384,
+        "gpu_memory_utilization": 0.9,
+        "enforce_eager": false,
+        "seed": 0
+      },
+      "total_tokens": 524288,
+      "throughput": 8184.676275893203,
+      "prefill_tps": 11582.173115471272,
+      "decode_tps": 10014.743829120753,
+      "ttft_seconds": 3.695986859500408,
+      "stats": {
+        "wall_time_seconds": 64.05726779252291,
+        "prefill_tokens": 136605,
+        "prefill_time_seconds": 11.794418770819902,
+        "prefill_steps": 18,
+        "prefill_tokens_per_second": 11582.173115471272,
+        "decode_tokens": 522178,
+        "decode_time_seconds": 52.14092431217432,
+        "decode_steps": 4080,
+        "decode_tokens_per_second": 10014.743829120753,
+        "ttft_seconds_approx": 3.695986859500408
+      },
+      "memory_after_load_bytes": {
+        "memory_allocated": 794114048,
+        "max_memory_allocated": 20823213568,
+        "memory_reserved": 1130364928,
+        "free_memory": 22308126720,
+        "total_memory": 23819976704
+      },
+      "memory_after_load_gib": {
+        "memory_allocated": 0.7395763397216797,
+        "max_memory_allocated": 19.393128871917725,
+        "memory_reserved": 1.052734375,
+        "free_memory": 20.77606201171875,
+        "total_memory": 22.18408203125
+      },
+      "runtime_memory_bytes": {
+        "memory_allocated": 20553754624,
+        "memory_reserved": 21151875072,
+        "max_memory_allocated": 20798244352
+      },
+      "runtime_memory_gib": {
+        "memory_allocated": 19.142175674438477,
+        "memory_reserved": 19.69921875,
+        "max_memory_allocated": 19.369874477386475
+      },
+      "error": null
+    },
+    {
+      "status": "ok",
+      "mode": "w8a8",
+      "backend": "native",
+      "run_label": "w8a8[backend=native]",
+      "config": {
+        "num_seqs": 1024,
+        "profile": "decode_heavy",
+        "max_input_len": 1024,
+        "max_output_len": 1024,
+        "fixed_input_len": null,
+        "fixed_output_len": null,
+        "max_model_len": 4096,
+        "tensor_parallel_size": 1,
+        "max_num_seqs": 128,
+        "max_num_batched_tokens": 16384,
+        "configured_max_num_seqs": 512,
+        "configured_max_num_batched_tokens": 16384,
+        "gpu_memory_utilization": 0.9,
+        "enforce_eager": false,
+        "seed": 0
+      },
+      "total_tokens": 524288,
+      "throughput": 7398.485974058684,
+      "prefill_tps": 20026.157279912746,
+      "decode_tps": 8185.387309669696,
+      "ttft_seconds": 2.0907779335975647,
+      "stats": {
+        "wall_time_seconds": 70.86422841623425,
+        "prefill_tokens": 139225,
+        "prefill_time_seconds": 6.952157523483038,
+        "prefill_steps": 18,
+        "prefill_tokens_per_second": 20026.157279912746,
+        "decode_tokens": 522138,
+        "decode_time_seconds": 63.78904018178582,
+        "decode_steps": 4080,
+        "decode_tokens_per_second": 8185.387309669696,
+        "ttft_seconds_approx": 2.0907779335975647
+      },
+      "memory_after_load_bytes": {
+        "memory_allocated": 794114048,
+        "max_memory_allocated": 20798244352,
+        "memory_reserved": 1130364928,
+        "free_memory": 22308126720,
+        "total_memory": 23819976704
+      },
+      "memory_after_load_gib": {
+        "memory_allocated": 0.7395763397216797,
+        "max_memory_allocated": 19.369874477386475,
+        "memory_reserved": 1.052734375,
+        "free_memory": 20.77606201171875,
+        "total_memory": 22.18408203125
+      },
+      "runtime_memory_bytes": {
+        "memory_allocated": 19966552064,
+        "memory_reserved": 21659385856,
+        "max_memory_allocated": 20507298304
+      },
+      "runtime_memory_gib": {
+        "memory_allocated": 18.595300674438477,
+        "memory_reserved": 20.171875,
+        "max_memory_allocated": 19.098909854888916
+      },
+      "error": null
+    },
+    {
+      "status": "ok",
+      "mode": "bf16",
+      "backend": null,
+      "run_label": "bf16",
+      "config": {
+        "num_seqs": 1024,
+        "profile": "decode_heavy",
+        "max_input_len": 1024,
+        "max_output_len": 1024,
+        "fixed_input_len": null,
+        "fixed_output_len": null,
+        "max_model_len": 4096,
+        "tensor_parallel_size": 1,
+        "max_num_seqs": 256,
+        "max_num_batched_tokens": 16384,
+        "configured_max_num_seqs": 512,
+        "configured_max_num_batched_tokens": 16384,
+        "gpu_memory_utilization": 0.9,
+        "enforce_eager": false,
+        "seed": 0
+      },
+      "total_tokens": 524288,
+      "throughput": 7935.390370150525,
+      "prefill_tps": 53609.68036851219,
+      "decode_tps": 8389.796221502811,
+      "ttft_seconds": 0.7635009959340096,
+      "stats": {
+        "wall_time_seconds": 66.0695914812386,
+        "prefill_tokens": 197948,
+        "prefill_time_seconds": 3.6923928409814835,
+        "prefill_steps": 15,
+        "prefill_tokens_per_second": 53609.68036851219,
+        "decode_tokens": 522060,
+        "decode_time_seconds": 62.225587632507086,
+        "decode_steps": 2286,
+        "decode_tokens_per_second": 8389.796221502811,
+        "ttft_seconds_approx": 0.7635009959340096
+      },
+      "memory_after_load_bytes": {
+        "memory_allocated": 1230125056,
+        "max_memory_allocated": 20507298304,
+        "memory_reserved": 1616904192,
+        "free_memory": 21716729856,
+        "total_memory": 23819976704
+      },
+      "memory_after_load_gib": {
+        "memory_allocated": 1.1456432342529297,
+        "max_memory_allocated": 19.098909854888916,
+        "memory_reserved": 1.505859375,
+        "free_memory": 20.22528076171875,
+        "total_memory": 22.18408203125
+      },
+      "runtime_memory_bytes": {
+        "memory_allocated": 20402836480,
+        "memory_reserved": 21112029184,
+        "max_memory_allocated": 20872930304
+      },
+      "runtime_memory_gib": {
+        "memory_allocated": 19.001622200012207,
+        "memory_reserved": 19.662109375,
+        "max_memory_allocated": 19.439431190490723
+      },
+      "error": null
+    },
+    {
+      "status": "ok",
+      "mode": "int8",
+      "backend": "native",
+      "run_label": "int8[backend=native]",
+      "config": {
+        "num_seqs": 1024,
+        "profile": "decode_heavy",
+        "max_input_len": 1024,
+        "max_output_len": 1024,
+        "fixed_input_len": null,
+        "fixed_output_len": null,
+        "max_model_len": 4096,
+        "tensor_parallel_size": 1,
+        "max_num_seqs": 256,
+        "max_num_batched_tokens": 16384,
+        "configured_max_num_seqs": 512,
+        "configured_max_num_batched_tokens": 16384,
+        "gpu_memory_utilization": 0.9,
+        "enforce_eager": false,
+        "seed": 0
+      },
+      "total_tokens": 524288,
+      "throughput": 7907.35073527484,
+      "prefill_tps": 11495.854141366455,
+      "decode_tps": 10547.514094961494,
+      "ttft_seconds": 3.7058124765753746,
+      "stats": {
+        "wall_time_seconds": 66.30387566611171,
+        "prefill_tokens": 191653,
+        "prefill_time_seconds": 16.671488489955664,
+        "prefill_steps": 14,
+        "prefill_tokens_per_second": 11495.854141366455,
+        "decode_tokens": 522050,
+        "decode_time_seconds": 49.49507488682866,
+        "decode_steps": 2286,
+        "decode_tokens_per_second": 10547.514094961494,
+        "ttft_seconds_approx": 3.7058124765753746
+      },
+      "memory_after_load_bytes": {
+        "memory_allocated": 794114048,
+        "max_memory_allocated": 20872930304,
+        "memory_reserved": 1130364928,
+        "free_memory": 22201171968,
+        "total_memory": 23819976704
+      },
+      "memory_after_load_gib": {
+        "memory_allocated": 0.7395763397216797,
+        "max_memory_allocated": 19.439431190490723,
+        "memory_reserved": 1.052734375,
+        "free_memory": 20.67645263671875,
+        "total_memory": 22.18408203125
+      },
+      "runtime_memory_bytes": {
+        "memory_allocated": 20436587520,
+        "memory_reserved": 21095251968,
+        "max_memory_allocated": 20906681344
+      },
+      "runtime_memory_gib": {
+        "memory_allocated": 19.033055305480957,
+        "memory_reserved": 19.646484375,
+        "max_memory_allocated": 19.470864295959473
+      },
+      "error": null
+    },
+    {
+      "status": "ok",
+      "mode": "w8a8",
+      "backend": "native",
+      "run_label": "w8a8[backend=native]",
+      "config": {
+        "num_seqs": 1024,
+        "profile": "decode_heavy",
+        "max_input_len": 1024,
+        "max_output_len": 1024,
+        "fixed_input_len": null,
+        "fixed_output_len": null,
+        "max_model_len": 4096,
+        "tensor_parallel_size": 1,
+        "max_num_seqs": 256,
+        "max_num_batched_tokens": 16384,
+        "configured_max_num_seqs": 512,
+        "configured_max_num_batched_tokens": 16384,
+        "gpu_memory_utilization": 0.9,
+        "enforce_eager": false,
+        "seed": 0
+      },
+      "total_tokens": 524288,
+      "throughput": 7705.627921349898,
+      "prefill_tps": 20104.792609071625,
+      "decode_tps": 8999.185317754696,
+      "ttft_seconds": 2.047176532447338,
+      "stats": {
+        "wall_time_seconds": 68.03962056711316,
+        "prefill_tokens": 199233,
+        "prefill_time_seconds": 9.909726694226265,
+        "prefill_steps": 15,
+        "prefill_tokens_per_second": 20104.792609071625,
+        "decode_tokens": 522062,
+        "decode_time_seconds": 58.01214016228914,
+        "decode_steps": 2286,
+        "decode_tokens_per_second": 8999.185317754696,
+        "ttft_seconds_approx": 2.047176532447338
+      },
+      "memory_after_load_bytes": {
+        "memory_allocated": 794114048,
+        "max_memory_allocated": 20906681344,
+        "memory_reserved": 1130364928,
+        "free_memory": 22201171968,
+        "total_memory": 23819976704
+      },
+      "memory_after_load_gib": {
+        "memory_allocated": 0.7395763397216797,
+        "max_memory_allocated": 19.470864295959473,
+        "memory_reserved": 1.052734375,
+        "free_memory": 20.67645263671875,
+        "total_memory": 22.18408203125
+      },
+      "runtime_memory_bytes": {
+        "memory_allocated": 19878745088,
+        "memory_reserved": 21546139648,
+        "max_memory_allocated": 20919451648
+      },
+      "runtime_memory_gib": {
+        "memory_allocated": 18.513524055480957,
+        "memory_reserved": 20.06640625,
+        "max_memory_allocated": 19.482757568359375
+      },
+      "error": null
+    },
+    {
+      "status": "ok",
+      "mode": "bf16",
+      "backend": null,
+      "run_label": "bf16",
+      "config": {
+        "num_seqs": 1024,
+        "profile": "decode_heavy",
+        "max_input_len": 1024,
+        "max_output_len": 1024,
+        "fixed_input_len": null,
+        "fixed_output_len": null,
+        "max_model_len": 4096,
+        "tensor_parallel_size": 1,
+        "max_num_seqs": 512,
+        "max_num_batched_tokens": 16384,
+        "configured_max_num_seqs": 512,
+        "configured_max_num_batched_tokens": 16384,
+        "gpu_memory_utilization": 0.9,
+        "enforce_eager": false,
+        "seed": 0
+      },
+      "total_tokens": 524288,
+      "throughput": 7822.039674073019,
+      "prefill_tps": 53008.960516626576,
+      "decode_tps": 8538.605180135337,
+      "ttft_seconds": 0.7361435070633888,
+      "stats": {
+        "wall_time_seconds": 67.02701876312494,
+        "prefill_tokens": 302722,
+        "prefill_time_seconds": 5.710770349949598,
+        "prefill_steps": 24,
+        "prefill_tokens_per_second": 53008.960516626576,
+        "decode_tokens": 522235,
+        "decode_time_seconds": 61.16162874177098,
+        "decode_steps": 1659,
+        "decode_tokens_per_second": 8538.605180135337,
+        "ttft_seconds_approx": 0.7361435070633888
+      },
+      "memory_after_load_bytes": {
+        "memory_allocated": 1230125056,
+        "max_memory_allocated": 20919451648,
+        "memory_reserved": 1616904192,
+        "free_memory": 21611872256,
+        "total_memory": 23819976704
+      },
+      "memory_after_load_gib": {
+        "memory_allocated": 1.1456432342529297,
+        "max_memory_allocated": 19.482757568359375,
+        "memory_reserved": 1.505859375,
+        "free_memory": 20.12762451171875,
+        "total_memory": 22.18408203125
+      },
+      "runtime_memory_bytes": {
+        "memory_allocated": 20285942784,
+        "memory_reserved": 20996685824,
+        "max_memory_allocated": 20756036608
+      },
+      "runtime_memory_gib": {
+        "memory_allocated": 18.892756462097168,
+        "memory_reserved": 19.5546875,
+        "max_memory_allocated": 19.330565452575684
+      },
+      "error": null
+    },
+    {
+      "status": "ok",
+      "mode": "int8",
+      "backend": "native",
+      "run_label": "int8[backend=native]",
+      "config": {
+        "num_seqs": 1024,
+        "profile": "decode_heavy",
+        "max_input_len": 1024,
+        "max_output_len": 1024,
+        "fixed_input_len": null,
+        "fixed_output_len": null,
+        "max_model_len": 4096,
+        "tensor_parallel_size": 1,
+        "max_num_seqs": 512,
+        "max_num_batched_tokens": 16384,
+        "configured_max_num_seqs": 512,
+        "configured_max_num_batched_tokens": 16384,
+        "gpu_memory_utilization": 0.9,
+        "enforce_eager": false,
+        "seed": 0
+      },
+      "total_tokens": 524288,
+      "throughput": 6849.155525390909,
+      "prefill_tps": 11493.603023270784,
+      "decode_tps": 10550.656142435957,
+      "ttft_seconds": 3.678170096129179,
+      "stats": {
+        "wall_time_seconds": 76.54783105105162,
+        "prefill_tokens": 309247,
+        "prefill_time_seconds": 26.906010184437037,
+        "prefill_steps": 23,
+        "prefill_tokens_per_second": 11493.603023270784,
+        "decode_tokens": 522196,
+        "decode_time_seconds": 49.49417296424508,
+        "decode_steps": 1656,
+        "decode_tokens_per_second": 10550.656142435957,
+        "ttft_seconds_approx": 3.678170096129179
+      },
+      "memory_after_load_bytes": {
+        "memory_allocated": 794114048,
+        "max_memory_allocated": 20756036608,
+        "memory_reserved": 1130364928,
+        "free_memory": 22098411520,
+        "total_memory": 23819976704
+      },
+      "memory_after_load_gib": {
+        "memory_allocated": 0.7395763397216797,
+        "max_memory_allocated": 19.330565452575684,
+        "memory_reserved": 1.052734375,
+        "free_memory": 20.58074951171875,
+        "total_memory": 22.18408203125
+      },
+      "runtime_memory_bytes": {
+        "memory_allocated": 20349053952,
+        "memory_reserved": 21009268736,
+        "max_memory_allocated": 20819147776
+      },
+      "runtime_memory_gib": {
+        "memory_allocated": 18.951533317565918,
+        "memory_reserved": 19.56640625,
+        "max_memory_allocated": 19.389342308044434
+      },
+      "error": null
+    },
+    {
+      "status": "ok",
+      "mode": "w8a8",
+      "backend": "native",
+      "run_label": "w8a8[backend=native]",
+      "config": {
+        "num_seqs": 1024,
+        "profile": "decode_heavy",
+        "max_input_len": 1024,
+        "max_output_len": 1024,
+        "fixed_input_len": null,
+        "fixed_output_len": null,
+        "max_model_len": 4096,
+        "tensor_parallel_size": 1,
+        "max_num_seqs": 512,
+        "max_num_batched_tokens": 16384,
+        "configured_max_num_seqs": 512,
+        "configured_max_num_batched_tokens": 16384,
+        "gpu_memory_utilization": 0.9,
+        "enforce_eager": false,
+        "seed": 0
+      },
+      "total_tokens": 524288,
+      "throughput": 7243.262487536462,
+      "prefill_tps": 20384.822951439368,
+      "decode_tps": 9086.096811368136,
+      "ttft_seconds": 2.017178475856781,
+      "stats": {
+        "wall_time_seconds": 72.38285246491432,
+        "prefill_tokens": 301172,
+        "prefill_time_seconds": 14.774325031787157,
+        "prefill_steps": 22,
+        "prefill_tokens_per_second": 20384.822951439368,
+        "decode_tokens": 522244,
+        "decode_time_seconds": 57.47726563364267,
+        "decode_steps": 1659,
+        "decode_tokens_per_second": 9086.096811368136,
+        "ttft_seconds_approx": 2.017178475856781
+      },
+      "memory_after_load_bytes": {
+        "memory_allocated": 794114048,
+        "max_memory_allocated": 20819147776,
+        "memory_reserved": 1130364928,
+        "free_memory": 22098411520,
+        "total_memory": 23819976704
+      },
+      "memory_after_load_gib": {
+        "memory_allocated": 0.7395763397216797,
+        "max_memory_allocated": 19.389342308044434,
+        "memory_reserved": 1.052734375,
+        "free_memory": 20.58074951171875,
+        "total_memory": 22.18408203125
+      },
+      "runtime_memory_bytes": {
+        "memory_allocated": 19761851392,
+        "memory_reserved": 21451767808,
+        "max_memory_allocated": 20802512384
+      },
+      "runtime_memory_gib": {
+        "memory_allocated": 18.404658317565918,
+        "memory_reserved": 19.978515625,
+        "max_memory_allocated": 19.373849391937256
+      },
+      "error": null
+    },
+    {
+      "status": "ok",
+      "mode": "bf16",
+      "backend": null,
+      "run_label": "bf16",
+      "config": {
+        "num_seqs": 1024,
+        "profile": "decode_heavy",
+        "max_input_len": 1024,
+        "max_output_len": 1024,
+        "fixed_input_len": null,
+        "fixed_output_len": null,
+        "max_model_len": 4096,
+        "tensor_parallel_size": 1,
+        "max_num_seqs": 768,
+        "max_num_batched_tokens": 16384,
+        "configured_max_num_seqs": 512,
+        "configured_max_num_batched_tokens": 16384,
+        "gpu_memory_utilization": 0.9,
+        "enforce_eager": false,
+        "seed": 0
+      },
+      "total_tokens": 524288,
+      "throughput": 7754.215616898144,
+      "prefill_tps": 53996.13760916508,
+      "decode_tps": 8513.398290906436,
+      "ttft_seconds": 0.7267440930008888,
+      "stats": {
+        "wall_time_seconds": 67.61328623071313,
+        "prefill_tokens": 328419,
+        "prefill_time_seconds": 6.082268372178078,
+        "prefill_steps": 24,
+        "prefill_tokens_per_second": 53996.13760916508,
+        "decode_tokens": 522481,
+        "decode_time_seconds": 61.37161473557353,
+        "decode_steps": 1658,
+        "decode_tokens_per_second": 8513.398290906436,
+        "ttft_seconds_approx": 0.7267440930008888
+      },
+      "memory_after_load_bytes": {
+        "memory_allocated": 1230125056,
+        "max_memory_allocated": 20802512384,
+        "memory_reserved": 1616904192,
+        "free_memory": 21404254208,
+        "total_memory": 23819976704
+      },
+      "memory_after_load_gib": {
+        "memory_allocated": 1.1456432342529297,
+        "max_memory_allocated": 19.373849391937256,
+        "memory_reserved": 1.505859375,
+        "free_memory": 19.93426513671875,
+        "total_memory": 22.18408203125
+      },
+      "runtime_memory_bytes": {
+        "memory_allocated": 20080421888,
+        "memory_reserved": 20791164928,
+        "max_memory_allocated": 20550515712
+      },
+      "runtime_memory_gib": {
+        "memory_allocated": 18.701350212097168,
+        "memory_reserved": 19.36328125,
+        "max_memory_allocated": 19.139159202575684
+      },
+      "error": null
+    },
+    {
+      "status": "ok",
+      "mode": "int8",
+      "backend": "native",
+      "run_label": "int8[backend=native]",
+      "config": {
+        "num_seqs": 1024,
+        "profile": "decode_heavy",
+        "max_input_len": 1024,
+        "max_output_len": 1024,
+        "fixed_input_len": null,
+        "fixed_output_len": null,
+        "max_model_len": 4096,
+        "tensor_parallel_size": 1,
+        "max_num_seqs": 768,
+        "max_num_batched_tokens": 16384,
+        "configured_max_num_seqs": 512,
+        "configured_max_num_batched_tokens": 16384,
+        "gpu_memory_utilization": 0.9,
+        "enforce_eager": false,
+        "seed": 0
+      },
+      "total_tokens": 524288,
+      "throughput": 5841.210715127568,
+      "prefill_tps": 11626.705464939581,
+      "decode_tps": 8505.260850368164,
+      "ttft_seconds": 3.590186569839716,
+      "stats": {
+        "wall_time_seconds": 89.75673461705446,
+        "prefill_tokens": 327524,
+        "prefill_time_seconds": 28.16997480392456,
+        "prefill_steps": 25,
+        "prefill_tokens_per_second": 11626.705464939581,
+        "decode_tokens": 522485,
+        "decode_time_seconds": 61.430802557617426,
+        "decode_steps": 1658,
+        "decode_tokens_per_second": 8505.260850368164,
+        "ttft_seconds_approx": 3.590186569839716
+      },
+      "memory_after_load_bytes": {
+        "memory_allocated": 794114048,
+        "max_memory_allocated": 20550515712,
+        "memory_reserved": 1130364928,
+        "free_memory": 21890793472,
+        "total_memory": 23819976704
+      },
+      "memory_after_load_gib": {
+        "memory_allocated": 0.7395763397216797,
+        "max_memory_allocated": 19.139159202575684,
+        "memory_reserved": 1.052734375,
+        "free_memory": 20.38739013671875,
+        "total_memory": 22.18408203125
+      },
+      "runtime_memory_bytes": {
+        "memory_allocated": 20143533056,
+        "memory_reserved": 20805844992,
+        "max_memory_allocated": 20613626880
+      },
+      "runtime_memory_gib": {
+        "memory_allocated": 18.760127067565918,
+        "memory_reserved": 19.376953125,
+        "max_memory_allocated": 19.197936058044434
+      },
+      "error": null
+    },
+    {
+      "status": "ok",
+      "mode": "w8a8",
+      "backend": "native",
+      "run_label": "w8a8[backend=native]",
+      "config": {
+        "num_seqs": 1024,
+        "profile": "decode_heavy",
+        "max_input_len": 1024,
+        "max_output_len": 1024,
+        "fixed_input_len": null,
+        "fixed_output_len": null,
+        "max_model_len": 4096,
+        "tensor_parallel_size": 1,
+        "max_num_seqs": 768,
+        "max_num_batched_tokens": 16384,
+        "configured_max_num_seqs": 512,
+        "configured_max_num_batched_tokens": 16384,
+        "gpu_memory_utilization": 0.9,
+        "enforce_eager": false,
+        "seed": 0
+      },
+      "total_tokens": 524288,
+      "throughput": 6561.220151867101,
+      "prefill_tps": 20121.23229274055,
+      "decode_tps": 8234.077830418795,
+      "ttft_seconds": 1.9996771849691868,
+      "stats": {
+        "wall_time_seconds": 79.90708860009909,
+        "prefill_tokens": 328288,
+        "prefill_time_seconds": 16.31550171598792,
+        "prefill_steps": 25,
+        "prefill_tokens_per_second": 20121.23229274055,
+        "decode_tokens": 522479,
+        "decode_time_seconds": 63.45325011014938,
+        "decode_steps": 1658,
+        "decode_tokens_per_second": 8234.077830418795,
+        "ttft_seconds_approx": 1.9996771849691868
+      },
+      "memory_after_load_bytes": {
+        "memory_allocated": 794114048,
+        "max_memory_allocated": 20613626880,
+        "memory_reserved": 1130364928,
+        "free_memory": 21890793472,
+        "total_memory": 23819976704
+      },
+      "memory_after_load_gib": {
+        "memory_allocated": 0.7395763397216797,
+        "max_memory_allocated": 19.197936058044434,
+        "memory_reserved": 1.052734375,
+        "free_memory": 20.38739013671875,
+        "total_memory": 22.18408203125
+      },
+      "runtime_memory_bytes": {
+        "memory_allocated": 19556330496,
+        "memory_reserved": 21250441216,
+        "max_memory_allocated": 20597030912
+      },
+      "runtime_memory_gib": {
+        "memory_allocated": 18.213252067565918,
+        "memory_reserved": 19.791015625,
+        "max_memory_allocated": 19.182479858398438
+      },
+      "error": null
+    }
+  ],
+  "sweep_points": [
+    {
+      "max_num_seqs": 128,
+      "max_num_batched_tokens": 16384
+    },
+    {
+      "max_num_seqs": 256,
+      "max_num_batched_tokens": 16384
+    },
+    {
+      "max_num_seqs": 512,
+      "max_num_batched_tokens": 16384
+    },
+    {
+      "max_num_seqs": 768,
+      "max_num_batched_tokens": 16384
+    }
+  ]
+}

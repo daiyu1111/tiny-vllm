@@ -79,6 +79,42 @@ Relative to bf16:
 
 Quantized kernels already help decode, but prefill remains the main bottleneck in the current implementation. As a result, TTFT and end-to-end throughput do not yet beat bf16 on this workload.
 
+### Decode-Heavy Scaling
+
+To separate decode behavior from mixed-workload noise, the repository now includes a `decode_heavy` profile in `bench_quant.py`. The workload uses short inputs and long outputs, then sweeps `max_num_seqs` while keeping `max_num_batched_tokens` fixed.
+
+Observed results on the A10:
+
+| Mode | Best Total Throughput | Best Decode Throughput | Best `max_num_seqs` |
+| ---- | --------------------- | ---------------------- | ------------------- |
+| bf16 | 7935.39 tok/s         | 8538.61 tok/s          | 256 / 512           |
+| int8 | 8184.68 tok/s         | 10550.66 tok/s         | 128 / 512           |
+| w8a8 | 7705.63 tok/s         | 9086.10 tok/s          | 256 / 512           |
+
+Decode throughput improves clearly when the effective decode batch grows from `128` to `256` or `512`. INT8 remains the strongest decode path and reaches the highest decode throughput in this repository.
+
+However, throughput does not continue rising past `512`. In the current implementation, `512` is an important turning point because decode can no longer fully benefit from the same fast path once batch size grows beyond the captured CUDA graph range. As a result, `768` does not improve end-to-end throughput even though decode is still the dominant phase.
+
+### Prefill-Heavy Scaling
+
+The repository also includes a `prefill_heavy` profile with long inputs and short outputs. This profile sweeps `max_num_batched_tokens` while keeping `max_num_seqs` fixed.
+
+Observed results on the A10:
+
+| Mode | Best Total Throughput | Prefill Throughput Range | TTFT Range |
+| ---- | --------------------- | ------------------------ | ---------- |
+| bf16 | 764.23 tok/s          | 46.8k - 47.2k tok/s      | 3.64 s -> 3.19 s |
+| int8 | 276.30 tok/s          | 11.26k - 11.32k tok/s    | 15.09 s -> 13.77 s |
+| w8a8 | 421.93 tok/s          | 19.11k - 19.31k tok/s    | 8.86 s -> 6.97 s |
+
+Increasing `max_num_batched_tokens` reduces TTFT because prefill is split into fewer waves before the first decode step can start. At the same time, prefill throughput changes only slightly. This indicates that prefill kernels are already near their steady-state efficiency in these tests: larger token capacity mostly reduces scheduling overhead and wave count, rather than unlocking a much faster per-step kernel path.
+
+In other words:
+
+- Larger prefill token capacity helps latency-to-first-token.
+- It does not materially change the prefill kernel efficiency in the current implementation.
+- Prefill remains the weakest part of the INT8/W8A8 end-to-end story.
+
 ### Quality Check
 
 Quality was evaluated with artifact validation, logits comparison, greedy generation, and perplexity on WikiText-2.

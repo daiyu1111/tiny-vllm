@@ -67,6 +67,10 @@ class LLMEngine:
         # 2. 并行计算：包工头（Model Runner）拉起所有 GPU 工人执行前向传播
         # 根据送来的序列和所处阶段，算出这些请求对应的下一个字的代码（token_ids）
         token_ids = self.model_runner.call("run", seqs, is_prefill)
+        num_tokens = (
+            sum(len(seq) - seq.num_cached_tokens for seq in seqs)
+            if is_prefill else -len(seqs)
+        )
 
         # 3. 验收更新：车间主任把新算出来的字填进各自的工单里
         # 同时检查这些请求是不是已经输出了“句号”（EOS），如果完成则打上 is_finished 标记
@@ -79,7 +83,6 @@ class LLMEngine:
         # 5. 统计业绩 (KPI)：计算这一拍处理了多少个 Token，用于评估引擎速度
         # 巧妙之处：如果是 prefill 阶段，就累加所有 prompt 的长度；
         # 如果是 decode 阶段，为了区分，用负数表示（一次生成 len(seqs) 个新字）
-        num_tokens = sum(len(seq) for seq in seqs) if is_prefill else -len(seqs)
         return outputs, num_tokens
 
     def is_finished(self):
